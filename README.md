@@ -12,18 +12,23 @@ pip install sprites-py
 
 ```python
 from sprites import SpritesClient
+from sprites.exec import run
 
 # Create a client
 client = SpritesClient(token="your-token")
 
-# Get a sprite handle
-sprite = client.sprite("my-sprite")
+# Create a sprite
+sprite_name = "my-sprite"
+client.create_sprite(sprite_name)
 
-# Run a command
-result = sprite.run("echo", "hello", capture_output=True)
+# Get a sprite handle
+sprite = client.sprite(sprite_name)
+
+# Run a command using the standalone run() function
+result = run(sprite, "echo", "hello", capture_output=True)
 print(result.stdout.decode())  # "hello\n"
 
-# Or use the Go-style API
+# Or use the Go-style API (recommended)
 cmd = sprite.command("ls", "-la")
 output = cmd.output()
 print(output.decode())
@@ -55,12 +60,14 @@ client.delete_sprite("my-sprite")
 ### Sprite
 
 ```python
+from sprites.exec import run
+
 # Run a command (subprocess.run style)
-result = sprite.run("echo", "hello", capture_output=True, timeout=30)
+result = run(sprite, "echo", "hello", capture_output=True, timeout=30)
 print(result.returncode)
 print(result.stdout)
 
-# Create a command (Go exec.Cmd style)
+# Create a command (Go exec.Cmd style - recommended)
 cmd = sprite.command("bash", "-c", "echo hello")
 output = cmd.output()  # Returns stdout
 combined = cmd.combined_output()  # Returns stdout + stderr

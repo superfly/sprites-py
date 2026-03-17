@@ -179,9 +179,7 @@ class Cmd:
                 async with asyncio.timeout(self.timeout):
                     return await run_ws_command(self)
             except asyncio.TimeoutError:
-                raise TimeoutError(
-                    f"command timed out after {self.timeout}s", timeout=self.timeout
-                ) from None
+                raise TimeoutError(f"command timed out after {self.timeout}s") from None
         else:
             return await run_ws_command(self)
 

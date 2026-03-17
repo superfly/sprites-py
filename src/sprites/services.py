@@ -100,7 +100,14 @@ def _parse_service_with_state(data: dict) -> ServiceWithState:
             restart_count=state_data.get("restart_count", 0),
         )
 
-    return ServiceWithState(service=service, state=state)
+    return ServiceWithState(
+        name=service.name,
+        cmd=service.cmd,
+        args=service.args,
+        needs=service.needs,
+        http_port=service.http_port,
+        state=state,
+    )
 
 
 def _parse_stream_response(response_text: str) -> list[ServiceLogEvent]:

@@ -20,5 +20,12 @@ if sprite.status:
     result["status"] = sprite.status
 if sprite.url:
     result["url"] = sprite.url
+if sprite.url_settings:
+    result["url_settings"] = {
+        "auth": sprite.url_settings.auth,
+        "private_access": sprite.url_settings.private_access,
+    }
+if sprite.labels:
+    result["labels"] = sprite.labels
 
 print(json.dumps(result, indent=2))

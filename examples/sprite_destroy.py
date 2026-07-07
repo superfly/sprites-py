@@ -10,6 +10,6 @@ sprite_name = os.environ["SPRITE_NAME"]
 
 client = SpritesClient(token)
 
-client.delete_sprite(sprite_name)
+client.destroy_sprite(sprite_name)
 
 print(f"Sprite '{sprite_name}' destroyed")

@@ -10,6 +10,8 @@ from urllib.parse import urlencode
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from sprites._utils import quote_path_segment, websocket_base_url
+
 if TYPE_CHECKING:
     from .sprite import Sprite
 
@@ -217,14 +219,9 @@ class ControlConnection:
         if self.ws is not None:
             raise RuntimeError("Already connected")
 
-        # Build WebSocket URL
-        base_url = self.sprite.client.base_url
-        if base_url.startswith("https"):
-            base_url = "wss" + base_url[5:]
-        elif base_url.startswith("http"):
-            base_url = "ws" + base_url[4:]
-
-        url = f"{base_url}/v1/sprites/{self.sprite.name}/control"
+        base_url = websocket_base_url(self.sprite.client.base_url)
+        sprite_name = quote_path_segment(self.sprite.name)
+        url = f"{base_url}/v1/sprites/{sprite_name}/control"
         headers = {"Authorization": f"Bearer {self.sprite.client.token}"}
 
         self.ws = await websockets.connect(

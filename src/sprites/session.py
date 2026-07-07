@@ -10,6 +10,7 @@ import httpx
 
 from sprites.exceptions import APIError
 from sprites.types import Session, StreamMessage
+from sprites._utils import quote_path_segment, sprite_base_url
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -71,7 +72,7 @@ def list_sessions(sprite: Sprite) -> list[Session]:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/exec"
+    url = f"{sprite_base_url(sprite.client.base_url, sprite.name)}/exec"
 
     try:
         response = sprite.client.http_client.get(url)
@@ -143,7 +144,10 @@ def kill_session(
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/exec/{session_id}/kill"
+    url = (
+        f"{sprite_base_url(sprite.client.base_url, sprite.name)}"
+        f"/exec/{quote_path_segment(session_id)}/kill"
+    )
 
     payload = {
         "signal": signal,

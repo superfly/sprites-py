@@ -2,6 +2,7 @@
 Sprites client implementation
 """
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -18,6 +19,12 @@ from .exceptions import (
     NetworkError,
     AuthenticationError,
     NotFoundError,
+)
+from ._utils import (
+    parse_datetime,
+    parse_sprite_info,
+    parse_url_settings,
+    sprite_base_url,
 )
 
 
@@ -83,6 +90,21 @@ class SpritesClient:
                 f"Failed {operation} (status {response.status_code}): {body}"
             )
 
+    def _sprite_url(self, name: str) -> str:
+        return sprite_base_url(self.base_url, name)
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> Optional[datetime]:
+        return parse_datetime(value)
+
+    @classmethod
+    def _parse_url_settings(cls, data: Any) -> Optional[URLSettings]:
+        return parse_url_settings(data)
+
+    @classmethod
+    def _parse_sprite_info(cls, data: Dict[str, Any]) -> SpriteInfo:
+        return parse_sprite_info(data)
+
     def sprite(self, name: str) -> "Sprite":
         """
         Get a handle to a sprite (doesn't create it on the server).
@@ -99,7 +121,11 @@ class SpritesClient:
     def create_sprite(
         self,
         name: str,
-        config: Optional[SpriteConfig] = None
+        config: Optional[SpriteConfig] = None,
+        url_settings: Optional[URLSettings] = None,
+        labels: Optional[List[str]] = None,
+        wait_for_capacity: bool = False,
+        runtime: Optional[str] = None,
     ) -> "Sprite":
         """
         Create a new sprite.
@@ -107,6 +133,10 @@ class SpritesClient:
         Args:
             name: Sprite name
             config: Optional configuration
+            url_settings: Optional URL access settings
+            labels: Optional labels to attach to the sprite
+            wait_for_capacity: Wait until capacity is available before returning
+            runtime: Optional runtime variant ("default" or "dev")
 
         Returns:
             Created Sprite instance
@@ -123,6 +153,19 @@ class SpritesClient:
                     "storage_gb": config.storage_gb,
                 }.items() if v is not None
             }
+        if url_settings:
+            request["url_settings"] = {
+                k: v for k, v in {
+                    "auth": url_settings.auth,
+                    "private_access": url_settings.private_access,
+                }.items() if v is not None
+            }
+        if labels is not None:
+            request["labels"] = labels
+        if wait_for_capacity:
+            request["wait_for_capacity"] = True
+        if runtime is not None:
+            request["runtime"] = runtime
 
         try:
             response = self._client.post(
@@ -136,7 +179,9 @@ class SpritesClient:
 
         self._handle_response(response, "create sprite")
         result = response.json()
-        return Sprite(result["name"], self)
+        sprite = Sprite(result["name"], self)
+        sprite._update_from_info(result)
+        return sprite
 
     def get_sprite(self, name: str) -> "Sprite":
         """
@@ -152,7 +197,7 @@ class SpritesClient:
 
         try:
             response = self._client.get(
-                f"{self.base_url}/v1/sprites/{name}",
+                self._sprite_url(name),
                 headers=self._headers(),
             )
         except httpx.RequestError as e:
@@ -182,6 +227,8 @@ class SpritesClient:
                 params["continuation_token"] = options.continuation_token
             if options.prefix:
                 params["prefix"] = options.prefix
+            if options.bulk_load:
+                params["bulk_load"] = "true"
 
         try:
             response = self._client.get(
@@ -195,21 +242,15 @@ class SpritesClient:
         self._handle_response(response, "list sprites")
         data = response.json()
 
-        sprites = []
-        for s in data.get("sprites", []):
-            sprites.append(SpriteInfo(
-                id=s.get("id", ""),
-                name=s.get("name", ""),
-                organization=s.get("organization", ""),
-                status=s.get("status", ""),
-                url=s.get("url"),
-                primary_region=s.get("primary_region"),
-            ))
+        sprites = [self._parse_sprite_info(s) for s in data.get("sprites", [])]
 
         return SpriteList(
             sprites=sprites,
-            has_more=data.get("hasMore", False),
-            next_continuation_token=data.get("nextContinuationToken"),
+            has_more=data.get("has_more", False),
+            next_continuation_token=data.get("next_continuation_token"),
+            running=data.get("running", 0),
+            warm=data.get("warm", 0),
+            cold=data.get("cold", 0),
         )
 
     def list_all_sprites(self, prefix: Optional[str] = None) -> List["Sprite"]:
@@ -244,23 +285,34 @@ class SpritesClient:
 
         return all_sprites
 
-    def delete_sprite(self, name: str) -> None:
+    def destroy_sprite(self, name: str) -> None:
         """
-        Delete a sprite.
+        Destroy a sprite.
 
         Args:
             name: Sprite name
         """
         try:
             response = self._client.delete(
-                f"{self.base_url}/v1/sprites/{name}",
+                self._sprite_url(name),
                 headers=self._headers(),
             )
         except httpx.RequestError as e:
             raise NetworkError(f"Network error deleting sprite: {e}")
 
         if response.status_code != 204:
-            self._handle_response(response, f"delete sprite '{name}'")
+            self._handle_response(response, f"destroy sprite '{name}'")
+
+    def delete_sprite(self, name: str) -> None:
+        """
+        Delete a sprite.
+
+        This is an alias for destroy_sprite(), named after the HTTP DELETE method.
+
+        Args:
+            name: Sprite name
+        """
+        self.destroy_sprite(name)
 
     def upgrade_sprite(self, name: str) -> None:
         """
@@ -271,19 +323,22 @@ class SpritesClient:
         """
         try:
             response = self._client.post(
-                f"{self.base_url}/v1/sprites/{name}/upgrade",
+                f"{self._sprite_url(name)}/upgrade",
                 headers=self._headers(),
                 timeout=60.0,
             )
         except httpx.RequestError as e:
             raise NetworkError(f"Network error upgrading sprite: {e}")
 
-        if response.status_code != 204:
+        if response.status_code not in (200, 204):
             self._handle_response(response, f"upgrade sprite '{name}'")
 
     def update_url_settings(self, name: str, settings: URLSettings) -> None:
         """
         Update URL authentication settings for a sprite.
+
+        This is a compatibility convenience for updating only URL settings.
+        Prefer update_sprite(...) when changing mutable sprite fields.
 
         Args:
             name: Sprite name
@@ -291,14 +346,71 @@ class SpritesClient:
         """
         try:
             response = self._client.put(
-                f"{self.base_url}/v1/sprites/{name}",
+                self._sprite_url(name),
                 headers=self._headers(),
-                json={"url_settings": {"auth": settings.auth}},
+                json={
+                    "url_settings": {
+                        k: v for k, v in {
+                            "auth": settings.auth,
+                            "private_access": settings.private_access,
+                        }.items() if v is not None
+                    }
+                },
             )
         except httpx.RequestError as e:
             raise NetworkError(f"Network error updating URL settings: {e}")
 
         self._handle_response(response, f"update URL settings for '{name}'")
+
+    def update_sprite(
+        self,
+        name: str,
+        *,
+        url_settings: Optional[URLSettings] = None,
+        labels: Optional[List[str]] = None,
+    ) -> "Sprite":
+        """
+        Update mutable sprite settings.
+
+        The Sprites API applies this as a partial update: omitted mutable fields
+        are left unchanged.
+
+        Args:
+            name: Sprite name
+            url_settings: Optional URL access settings
+            labels: Optional replacement labels
+
+        Returns:
+            Updated Sprite instance.
+        """
+        if url_settings is None and labels is None:
+            raise ValueError("url_settings or labels is required")
+
+        body: Dict[str, Any] = {}
+        if url_settings is not None:
+            body["url_settings"] = {
+                k: v for k, v in {
+                    "auth": url_settings.auth,
+                    "private_access": url_settings.private_access,
+                }.items() if v is not None
+            }
+        if labels is not None:
+            body["labels"] = labels
+
+        try:
+            response = self._client.put(
+                self._sprite_url(name),
+                headers=self._headers(),
+                json=body,
+            )
+        except httpx.RequestError as e:
+            raise NetworkError(f"Network error updating sprite: {e}")
+
+        self._handle_response(response, f"update sprite '{name}'")
+        info = response.json()
+        sprite = self.sprite(info.get("name", name))
+        sprite._update_from_info(info)
+        return sprite
 
     @staticmethod
     def create_token(

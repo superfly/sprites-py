@@ -73,12 +73,17 @@ updated = client.update_sprite(
     labels=["dev", "public-demo"],
 )
 
+# Omitted mutable fields are left unchanged by the API.
+client.update_sprite("my-sprite", labels=["dev"])
+
 # Destroy a sprite
 client.destroy_sprite("my-sprite")
 ```
 
 `URLSettings.auth` is `"sprite"` or `"public"`. When `auth="sprite"`,
-`private_access` may be `"admins"` or `"org_users"`.
+`private_access` may be `"admins"` or `"org_users"`. `update_url_settings(...)`
+is kept as a compatibility convenience for updating only URL settings; prefer
+`update_sprite(...)` when changing mutable sprite fields.
 
 ### Sprite
 
@@ -106,6 +111,8 @@ cmd.run()
 Commands use WebSockets. If `control_mode=True` is passed to `SpritesClient`,
 new commands use the multiplexed control connection when the sprite supports it
 and fall back to the standard exec WebSocket otherwise.
+Use `sprite.command(...)` instead of `sprite.run(...)` when you need streaming
+stdin/stdout/stderr handles.
 
 ### Filesystem
 

@@ -6,12 +6,13 @@ import asyncio
 import json
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode, InvalidStatus
 
 from sprites.exceptions import parse_api_error
+from sprites._utils import quote_path_segment, websocket_base_url
 
 if TYPE_CHECKING:
     from sprites.exec import Cmd
@@ -55,18 +56,12 @@ class WSCommand:
 
     def _build_websocket_url(self) -> str:
         """Build the WebSocket URL with query parameters."""
-        base_url = self.cmd.sprite.client.base_url
-
-        # Convert HTTP(S) to WS(S)
-        if base_url.startswith("https"):
-            base_url = "wss" + base_url[5:]
-        elif base_url.startswith("http"):
-            base_url = "ws" + base_url[4:]
+        base_url = websocket_base_url(self.cmd.sprite.client.base_url)
 
         # Build path
-        sprite_name = quote(self.cmd.sprite.name, safe="")
+        sprite_name = quote_path_segment(self.cmd.sprite.name)
         if self.cmd.session_id:
-            session_id = quote(self.cmd.session_id, safe="")
+            session_id = quote_path_segment(self.cmd.session_id)
             path = f"/v1/sprites/{sprite_name}/exec/{session_id}"
         else:
             path = f"/v1/sprites/{sprite_name}/exec"

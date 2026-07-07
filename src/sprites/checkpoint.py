@@ -5,19 +5,15 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator
-from urllib.parse import quote
 
 import httpx
 
 from sprites.exceptions import APIError
 from sprites.types import Checkpoint, StreamMessage
+from sprites._utils import quote_path_segment, sprite_base_url
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
-
-
-def _sprite_base_url(sprite: Sprite) -> str:
-    return f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
 
 
 class CheckpointStream:
@@ -137,7 +133,7 @@ def list_checkpoints(sprite: Sprite, history_filter: str = "") -> list[Checkpoin
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{_sprite_base_url(sprite)}/checkpoints"
+    url = f"{sprite_base_url(sprite.client.base_url, sprite.name)}/checkpoints"
     if history_filter:
         url += f"?history={history_filter}"
 
@@ -180,7 +176,10 @@ def get_checkpoint(sprite: Sprite, checkpoint_id: str) -> Checkpoint:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{_sprite_base_url(sprite)}/checkpoints/{quote(checkpoint_id, safe='')}"
+    url = (
+        f"{sprite_base_url(sprite.client.base_url, sprite.name)}"
+        f"/checkpoints/{quote_path_segment(checkpoint_id)}"
+    )
 
     try:
         response = sprite.client.http_client.get(url)
@@ -216,7 +215,7 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{_sprite_base_url(sprite)}/checkpoint"
+    url = f"{sprite_base_url(sprite.client.base_url, sprite.name)}/checkpoint"
 
     payload = {}
     if comment:
@@ -272,7 +271,10 @@ def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{_sprite_base_url(sprite)}/checkpoints/{quote(checkpoint_id, safe='')}/restore"
+    url = (
+        f"{sprite_base_url(sprite.client.base_url, sprite.name)}"
+        f"/checkpoints/{quote_path_segment(checkpoint_id)}/restore"
+    )
 
     # Use a separate client for streaming with no timeout
     with httpx.Client(

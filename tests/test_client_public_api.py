@@ -43,6 +43,8 @@ def test_get_sprite_parses_current_fields_and_encodes_name(make_mock_client) -> 
                 "labels": ["sdk", "python"],
                 "created_at": "2026-01-12T21:24:42Z",
                 "updated_at": "2026-01-12T21:25:42Z",
+                "last_running_at": "2026-01-12T21:26:42Z",
+                "last_warming_at": "2026-01-12T21:27:42Z",
             },
         )
 
@@ -57,6 +59,8 @@ def test_get_sprite_parses_current_fields_and_encodes_name(make_mock_client) -> 
     assert sprite.labels == ["sdk", "python"]
     assert sprite.created_at is not None
     assert sprite.updated_at is not None
+    assert sprite.last_running_at is not None
+    assert sprite.last_warming_at is not None
 
 
 def test_list_all_sprites_paginates_and_applies_prefix(make_mock_client) -> None:

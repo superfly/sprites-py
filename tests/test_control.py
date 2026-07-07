@@ -2,6 +2,7 @@
 
 import pytest
 from sprites import SpritesClient
+from sprites._utils import quote_path_segment, websocket_base_url
 
 
 class TestControlModeClientOptions:
@@ -55,13 +56,10 @@ class TestControlURLBuilding:
 
         expected_url = "ws://localhost:8080/v1/sprites/my-sprite/control"
 
-        # Build actual URL (simulating what ControlConnection does)
-        base_url = sprite.client.base_url
-        if base_url.startswith("https"):
-            base_url = "wss" + base_url[5:]
-        elif base_url.startswith("http"):
-            base_url = "ws" + base_url[4:]
-        actual_url = f"{base_url}/v1/sprites/{sprite.name}/control"
+        actual_url = (
+            f"{websocket_base_url(sprite.client.base_url)}"
+            f"/v1/sprites/{quote_path_segment(sprite.name)}/control"
+        )
 
         assert actual_url == expected_url
 
@@ -70,14 +68,23 @@ class TestControlURLBuilding:
         client = SpritesClient(token="test-token", base_url="https://api.sprites.dev")
         sprite = client.sprite("my-sprite")
 
-        # Build actual URL
-        base_url = sprite.client.base_url
-        if base_url.startswith("https"):
-            base_url = "wss" + base_url[5:]
-        elif base_url.startswith("http"):
-            base_url = "ws" + base_url[4:]
-        actual_url = f"{base_url}/v1/sprites/{sprite.name}/control"
+        actual_url = (
+            f"{websocket_base_url(sprite.client.base_url)}"
+            f"/v1/sprites/{quote_path_segment(sprite.name)}/control"
+        )
 
         assert actual_url.startswith("wss://")
         assert "my-sprite" in actual_url
         assert "/control" in actual_url
+
+    def test_control_endpoint_url_encodes_sprite_name(self):
+        """Control endpoint URL should encode the sprite path segment."""
+        client = SpritesClient(token="test-token", base_url="https://api.sprites.dev")
+        sprite = client.sprite("my sprite/name")
+
+        actual_url = (
+            f"{websocket_base_url(sprite.client.base_url)}"
+            f"/v1/sprites/{quote_path_segment(sprite.name)}/control"
+        )
+
+        assert actual_url == "wss://api.sprites.dev/v1/sprites/my%20sprite%2Fname/control"

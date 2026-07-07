@@ -4,7 +4,6 @@ Sprites client implementation
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 import httpx
 
 from .types import (
@@ -20,6 +19,12 @@ from .exceptions import (
     NetworkError,
     AuthenticationError,
     NotFoundError,
+)
+from ._utils import (
+    parse_datetime,
+    parse_sprite_info,
+    parse_url_settings,
+    sprite_base_url,
 )
 
 
@@ -86,45 +91,19 @@ class SpritesClient:
             )
 
     def _sprite_url(self, name: str) -> str:
-        return f"{self.base_url}/v1/sprites/{quote(name, safe='')}"
+        return sprite_base_url(self.base_url, name)
 
     @staticmethod
     def _parse_datetime(value: Any) -> Optional[datetime]:
-        if not value:
-            return None
-        try:
-            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except ValueError:
-            return None
+        return parse_datetime(value)
 
     @classmethod
     def _parse_url_settings(cls, data: Any) -> Optional[URLSettings]:
-        if not isinstance(data, dict):
-            return None
-        return URLSettings(
-            auth=data.get("auth"),
-            private_access=data.get("private_access"),
-        )
+        return parse_url_settings(data)
 
     @classmethod
     def _parse_sprite_info(cls, data: Dict[str, Any]) -> SpriteInfo:
-        return SpriteInfo(
-            id=data.get("id", ""),
-            name=data.get("name", ""),
-            organization=data.get("organization") or data.get("org_slug", ""),
-            status=data.get("status", ""),
-            created_at=cls._parse_datetime(data.get("created_at")),
-            updated_at=cls._parse_datetime(data.get("updated_at")),
-            bucket_name=data.get("bucket_name"),
-            primary_region=data.get("primary_region"),
-            url=data.get("url"),
-            url_settings=cls._parse_url_settings(data.get("url_settings")),
-            version=data.get("version"),
-            environment_version=data.get("environment_version"),
-            labels=data.get("labels") or [],
-            last_running_at=cls._parse_datetime(data.get("last_running_at")),
-            last_warming_at=cls._parse_datetime(data.get("last_warming_at")),
-        )
+        return parse_sprite_info(data)
 
     def sprite(self, name: str) -> "Sprite":
         """
@@ -358,6 +337,9 @@ class SpritesClient:
         """
         Update URL authentication settings for a sprite.
 
+        This is a compatibility convenience for updating only URL settings.
+        Prefer update_sprite(...) when changing mutable sprite fields.
+
         Args:
             name: Sprite name
             settings: URL settings with auth: "public" for no auth, "sprite" for authenticated
@@ -389,6 +371,9 @@ class SpritesClient:
     ) -> "Sprite":
         """
         Update mutable sprite settings.
+
+        The Sprites API applies this as a partial update: omitted mutable fields
+        are left unchanged.
 
         Args:
             name: Sprite name

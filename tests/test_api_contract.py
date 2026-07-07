@@ -117,6 +117,27 @@ def test_update_sprite_can_update_labels_and_url_settings() -> None:
     assert sprite.labels == ["sdk", "python"]
 
 
+def test_update_sprite_sends_only_supplied_partial_fields() -> None:
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"name": "demo", **bodies[-1]})
+
+    client = make_client(handler)
+
+    labels_only = client.update_sprite("demo", labels=["sdk"])
+    settings_only = client.update_sprite("demo", url_settings=URLSettings(auth="public"))
+
+    assert bodies == [
+        {"labels": ["sdk"]},
+        {"url_settings": {"auth": "public"}},
+    ]
+    assert labels_only.labels == ["sdk"]
+    assert settings_only.url_settings is not None
+    assert settings_only.url_settings.auth == "public"
+
+
 def test_destroy_sprite_uses_delete_endpoint() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "DELETE"

@@ -4,7 +4,6 @@ Sprite class representing a sprite instance
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from datetime import datetime
-from urllib.parse import quote
 import httpx
 
 from .types import (
@@ -21,6 +20,7 @@ from .exceptions import (
     NetworkError,
     NotFoundError,
 )
+from ._utils import parse_sprite_info, quote_path_segment, sprite_base_url
 
 if TYPE_CHECKING:
     from .client import SpritesClient
@@ -60,41 +60,28 @@ class Sprite:
         self.version: Optional[str] = None
         self.environment_version: Optional[str] = None
         self.labels: List[str] = []
+        self.last_running_at: Optional[datetime] = None
+        self.last_warming_at: Optional[datetime] = None
 
     def _update_from_info(self, info: Dict[str, Any]) -> None:
         """Update sprite properties from API response."""
-        self.id = info.get("id")
-        self.organization_name = info.get("organization")
-        self.status = info.get("status")
-        self.url = info.get("url")
-        self.primary_region = info.get("primary_region")
-        self.bucket_name = info.get("bucket_name")
-        self.version = info.get("version")
-        self.environment_version = info.get("environment_version")
-        self.labels = info.get("labels") or []
-
-        if isinstance(info.get("url_settings"), dict):
-            url_settings = info["url_settings"]
-            self.url_settings = URLSettings(
-                auth=url_settings.get("auth"),
-                private_access=url_settings.get("private_access"),
-            )
-
-        if "created_at" in info and info["created_at"]:
-            try:
-                self.created_at = datetime.fromisoformat(
-                    info["created_at"].replace("Z", "+00:00")
-                )
-            except (ValueError, AttributeError):
-                pass
-
-        if "updated_at" in info and info["updated_at"]:
-            try:
-                self.updated_at = datetime.fromisoformat(
-                    info["updated_at"].replace("Z", "+00:00")
-                )
-            except (ValueError, AttributeError):
-                pass
+        parsed = parse_sprite_info(info)
+        self.id = parsed.id
+        self.organization_name = parsed.organization
+        self.status = parsed.status
+        self.config = parsed.config
+        self.environment = parsed.environment
+        self.created_at = parsed.created_at
+        self.updated_at = parsed.updated_at
+        self.url = parsed.url
+        self.primary_region = parsed.primary_region
+        self.bucket_name = parsed.bucket_name
+        self.url_settings = parsed.url_settings
+        self.version = parsed.version
+        self.environment_version = parsed.environment_version
+        self.labels = parsed.labels
+        self.last_running_at = parsed.last_running_at
+        self.last_warming_at = parsed.last_warming_at
 
     def _headers(self) -> Dict[str, str]:
         """Get default headers with authorization."""
@@ -105,7 +92,7 @@ class Sprite:
 
     def _base_url(self) -> str:
         """Get sprite-specific base URL."""
-        return f"{self.client.base_url}/v1/sprites/{quote(self.name, safe='')}"
+        return sprite_base_url(self.client.base_url, self.name)
 
     # ========== Filesystem API ==========
 
@@ -140,6 +127,9 @@ class Sprite:
         """
         Update URL authentication settings.
 
+        This is a compatibility convenience for updating only URL settings.
+        Prefer update(...) when changing mutable sprite fields.
+
         Args:
             settings: URL settings with auth: "public" for no auth, "sprite" for authenticated
         """
@@ -151,7 +141,7 @@ class Sprite:
         url_settings: Optional[URLSettings] = None,
         labels: Optional[List[str]] = None,
     ) -> "Sprite":
-        """Update mutable settings for this sprite and return the refreshed sprite."""
+        """Partially update mutable settings and return the refreshed sprite."""
         return self.client.update_sprite(
             self.name,
             url_settings=url_settings,
@@ -280,7 +270,7 @@ class Sprite:
         """
         try:
             response = self.client._client.get(
-                f"{self._base_url()}/checkpoints/{quote(checkpoint_id, safe='')}",
+                f"{self._base_url()}/checkpoints/{quote_path_segment(checkpoint_id)}",
                 headers=self._headers(),
             )
         except httpx.RequestError as e:
@@ -397,7 +387,10 @@ class Sprite:
         tty_rows: int = 24,
         tty_cols: int = 80,
     ):
-        """Run a command on this sprite, mirroring subprocess.run."""
+        """Run a command on this sprite, mirroring subprocess.run.
+
+        Use command(...) when you need streaming stdin/stdout/stderr handles.
+        """
         from .exec import run
 
         return run(
@@ -470,7 +463,7 @@ class Sprite:
         """
         try:
             response = self.client._client.delete(
-                f"{self._base_url()}/services/{quote(service_name, safe='')}",
+                f"{self._base_url()}/services/{quote_path_segment(service_name)}",
                 headers=self._headers(),
             )
         except httpx.RequestError as e:

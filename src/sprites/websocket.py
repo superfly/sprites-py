@@ -6,7 +6,7 @@ import asyncio
 import json
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode, InvalidStatus
@@ -51,6 +51,7 @@ class WSCommand:
         self._stdout_buffer: bytearray = bytearray()
         self._stderr_buffer: bytearray = bytearray()
         self._io_task: asyncio.Task[None] | None = None
+        self._session_info_event = asyncio.Event()
 
     def _build_websocket_url(self) -> str:
         """Build the WebSocket URL with query parameters."""
@@ -63,10 +64,12 @@ class WSCommand:
             base_url = "ws" + base_url[4:]
 
         # Build path
+        sprite_name = quote(self.cmd.sprite.name, safe="")
         if self.cmd.session_id:
-            path = f"/v1/sprites/{self.cmd.sprite.name}/exec/{self.cmd.session_id}"
+            session_id = quote(self.cmd.session_id, safe="")
+            path = f"/v1/sprites/{sprite_name}/exec/{session_id}"
         else:
-            path = f"/v1/sprites/{self.cmd.sprite.name}/exec"
+            path = f"/v1/sprites/{sprite_name}/exec"
 
         # Build query params
         params: list[tuple[str, str]] = []
@@ -143,25 +146,8 @@ class WSCommand:
 
     async def _wait_for_session_info(self) -> None:
         """Wait for session_info message when attaching."""
-        if self.ws is None:
-            raise RuntimeError("WebSocket not connected")
-
         try:
-            async with asyncio.timeout(10):
-                async for message in self.ws:
-                    if isinstance(message, str):
-                        try:
-                            info = json.loads(message)
-                            if info.get("type") == "session_info":
-                                self.cmd.tty = info.get("tty", False)
-                                if self.text_message_handler:
-                                    self.text_message_handler(message.encode())
-                                return
-                        except json.JSONDecodeError:
-                            pass
-                        # Pass other text messages to handler
-                        if self.text_message_handler:
-                            self.text_message_handler(message.encode())
+            await asyncio.wait_for(self._session_info_event.wait(), timeout=10)
         except asyncio.TimeoutError:
             raise RuntimeError("timeout waiting for session_info") from None
 
@@ -232,9 +218,7 @@ class WSCommand:
         if self.cmd.tty:
             # TTY mode
             if isinstance(message, str):
-                # Text message - control/notification
-                if self.text_message_handler:
-                    self.text_message_handler(message.encode())
+                self._handle_text_message(message)
             else:
                 # Binary - raw terminal data
                 self._stdout_buffer.extend(message)
@@ -243,9 +227,7 @@ class WSCommand:
         else:
             # Non-TTY mode - stream-based protocol
             if isinstance(message, str):
-                # Text messages are control/notifications
-                if self.text_message_handler:
-                    self.text_message_handler(message.encode())
+                self._handle_text_message(message)
                 return
 
             if not message:
@@ -266,6 +248,19 @@ class WSCommand:
                 self.exit_code = payload[0] if payload else 0
                 # Mark as done - the connection will close and loop will exit
                 self.done = True
+
+    def _handle_text_message(self, message: str) -> None:
+        """Handle text control/notification messages."""
+        try:
+            info = json.loads(message)
+            if info.get("type") == "session_info":
+                self.cmd.tty = info.get("tty", False)
+                self._session_info_event.set()
+        except json.JSONDecodeError:
+            pass
+
+        if self.text_message_handler:
+            self.text_message_handler(message.encode())
 
     async def _copy_stdin(self) -> None:
         """Copy data from stdin to WebSocket."""

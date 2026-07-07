@@ -1,8 +1,9 @@
 """
 Sprites SDK for Python
 
-A Python SDK for interacting with the Sprites API, providing filesystem,
-checkpoint, services, and network policy management.
+A Python SDK for interacting with the Sprites API, providing sprite management,
+command execution, filesystem access, checkpoints, services, network policy
+management, and optional control-mode WebSocket multiplexing.
 
 Usage:
     from sprites import SpritesClient

@@ -4,7 +4,6 @@ Type definitions for the Sprites SDK
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
@@ -19,6 +18,7 @@ class ClientOptions:
 class URLSettings:
     """URL authentication settings."""
     auth: Optional[str] = None  # "public" or "sprite"
+    private_access: Optional[str] = None
 
 
 @dataclass
@@ -73,6 +73,11 @@ class SpriteInfo:
     primary_region: Optional[str] = None
     url: Optional[str] = None
     url_settings: Optional[URLSettings] = None
+    version: Optional[str] = None
+    environment_version: Optional[str] = None
+    labels: List[str] = field(default_factory=list)
+    last_running_at: Optional[datetime] = None
+    last_warming_at: Optional[datetime] = None
 
 
 @dataclass
@@ -81,6 +86,7 @@ class ListOptions:
     prefix: Optional[str] = None
     max_results: Optional[int] = None
     continuation_token: Optional[str] = None
+    bulk_load: bool = False
 
 
 @dataclass
@@ -89,6 +95,9 @@ class SpriteList:
     sprites: List[SpriteInfo]
     has_more: bool
     next_continuation_token: Optional[str] = None
+    running: int = 0
+    warm: int = 0
+    cold: int = 0
 
 
 @dataclass
@@ -145,10 +154,10 @@ class ServiceState:
     name: str
     status: str  # "stopped", "starting", "running", "stopping", "failed"
     pid: Optional[int] = None
-    started_at: Optional[str] = None
+    started_at: Optional[datetime] = None
     error: Optional[str] = None
     restart_count: int = 0
-    next_restart_at: Optional[str] = None
+    next_restart_at: Optional[datetime] = None
 
 
 @dataclass

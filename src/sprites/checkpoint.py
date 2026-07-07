@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator
+from urllib.parse import quote
 
 import httpx
 
@@ -13,6 +14,10 @@ from sprites.types import Checkpoint, StreamMessage
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
+
+
+def _sprite_base_url(sprite: Sprite) -> str:
+    return f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
 
 
 class CheckpointStream:
@@ -132,7 +137,7 @@ def list_checkpoints(sprite: Sprite, history_filter: str = "") -> list[Checkpoin
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/checkpoints"
+    url = f"{_sprite_base_url(sprite)}/checkpoints"
     if history_filter:
         url += f"?history={history_filter}"
 
@@ -175,7 +180,7 @@ def get_checkpoint(sprite: Sprite, checkpoint_id: str) -> Checkpoint:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/checkpoints/{checkpoint_id}"
+    url = f"{_sprite_base_url(sprite)}/checkpoints/{quote(checkpoint_id, safe='')}"
 
     try:
         response = sprite.client.http_client.get(url)
@@ -211,7 +216,7 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/checkpoint"
+    url = f"{_sprite_base_url(sprite)}/checkpoint"
 
     payload = {}
     if comment:
@@ -267,7 +272,7 @@ def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/checkpoints/{checkpoint_id}/restore"
+    url = f"{_sprite_base_url(sprite)}/checkpoints/{quote(checkpoint_id, safe='')}/restore"
 
     # Use a separate client for streaming with no timeout
     with httpx.Client(

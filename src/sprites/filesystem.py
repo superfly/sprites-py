@@ -21,6 +21,7 @@ from __future__ import annotations
 import posixpath
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Union
+from urllib.parse import quote
 import httpx
 
 from .types import DirEntry, FileStat
@@ -224,7 +225,8 @@ class SpritePath:
 
     def _build_url(self, endpoint: str) -> str:
         """Build full URL for filesystem endpoint."""
-        return f"{self._fs._sprite.client.base_url}/v1/sprites/{self._fs._sprite.name}/fs{endpoint}"
+        sprite_name = quote(self._fs._sprite.name, safe="")
+        return f"{self._fs._sprite.client.base_url}/v1/sprites/{sprite_name}/fs{endpoint}"
 
     def _headers(self) -> Dict[str, str]:
         """Get default headers with authorization."""

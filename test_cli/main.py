@@ -241,7 +241,7 @@ def cmd_destroy(client: SpritesClient, args: List[str]) -> None:
         print("Error: sprite name is required for destroy command", file=sys.stderr)
         sys.exit(1)
 
-    client.delete_sprite(args[0])
+    client.destroy_sprite(args[0])
     print(f"Destroyed sprite: {args[0]}")
 
 

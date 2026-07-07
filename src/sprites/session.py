@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator
+from urllib.parse import quote
 
 import httpx
 
@@ -13,6 +14,10 @@ from sprites.types import Session, StreamMessage
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
+
+
+def _sprite_base_url(sprite: Sprite) -> str:
+    return f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
 
 
 class KillStream:
@@ -71,7 +76,7 @@ def list_sessions(sprite: Sprite) -> list[Session]:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/exec"
+    url = f"{_sprite_base_url(sprite)}/exec"
 
     try:
         response = sprite.client.http_client.get(url)
@@ -143,7 +148,7 @@ def kill_session(
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/exec/{session_id}/kill"
+    url = f"{_sprite_base_url(sprite)}/exec/{quote(session_id, safe='')}/kill"
 
     payload = {
         "signal": signal,

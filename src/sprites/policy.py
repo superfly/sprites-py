@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 import httpx
 
@@ -11,6 +12,10 @@ from sprites.types import NetworkPolicy, PolicyRule
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
+
+
+def _sprite_base_url(sprite: Sprite) -> str:
+    return f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
 
 
 def get_network_policy(sprite: Sprite) -> NetworkPolicy:
@@ -25,7 +30,7 @@ def get_network_policy(sprite: Sprite) -> NetworkPolicy:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/policy/network"
+    url = f"{_sprite_base_url(sprite)}/policy/network"
 
     try:
         response = sprite.client.http_client.get(url)
@@ -62,7 +67,7 @@ def update_network_policy(sprite: Sprite, policy: NetworkPolicy) -> None:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/policy/network"
+    url = f"{_sprite_base_url(sprite)}/policy/network"
 
     # Convert policy to dict
     payload: dict[str, Any] = {

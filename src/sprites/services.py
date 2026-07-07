@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator, Optional
+from urllib.parse import quote
 
 import httpx
 
 from sprites.exceptions import APIError
-from sprites.types import Service, ServiceLogEvent, ServiceState, ServiceWithState
+from sprites.types import ServiceLogEvent, ServiceState, ServiceWithState
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -61,16 +62,6 @@ class ServiceStream:
 
 def _parse_service_with_state(data: dict) -> ServiceWithState:
     """Parse a service with state from API response."""
-    # Parse service definition
-    service = Service(
-        name=data.get("name", ""),
-        cmd=data.get("cmd", ""),
-        args=data.get("args", []),
-        needs=data.get("needs", []),
-        http_port=data.get("http_port"),
-    )
-
-    # Parse state if present
     state = None
     state_data = data.get("state")
     if state_data:
@@ -100,7 +91,14 @@ def _parse_service_with_state(data: dict) -> ServiceWithState:
             restart_count=state_data.get("restart_count", 0),
         )
 
-    return ServiceWithState(service=service, state=state)
+    return ServiceWithState(
+        name=data.get("name", ""),
+        cmd=data.get("cmd", ""),
+        args=data.get("args", []),
+        needs=data.get("needs", []),
+        http_port=data.get("http_port"),
+        state=state,
+    )
 
 
 def _parse_stream_response(response_text: str) -> list[ServiceLogEvent]:
@@ -136,7 +134,7 @@ def list_services(sprite: Sprite) -> list[ServiceWithState]:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services"
+    url = f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}/services"
 
     try:
         response = sprite.client.http_client.get(url)
@@ -151,6 +149,8 @@ def list_services(sprite: Sprite) -> list[ServiceWithState]:
         )
 
     data = response.json()
+    if isinstance(data, dict):
+        data = data.get("services", [])
     return [_parse_service_with_state(s) for s in data]
 
 
@@ -167,7 +167,10 @@ def get_service(sprite: Sprite, name: str) -> ServiceWithState:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/{name}"
+    url = (
+        f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
+        f"/services/{quote(name, safe='')}"
+    )
 
     try:
         response = sprite.client.http_client.get(url)
@@ -213,7 +216,10 @@ def create_service(
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/{name}"
+    url = (
+        f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
+        f"/services/{quote(name, safe='')}"
+    )
     if duration:
         url += f"?duration={duration}s"
 
@@ -261,7 +267,10 @@ def delete_service(sprite: Sprite, name: str) -> None:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/{name}"
+    url = (
+        f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
+        f"/services/{quote(name, safe='')}"
+    )
 
     try:
         response = sprite.client.http_client.delete(url)
@@ -304,7 +313,10 @@ def start_service(
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/{name}/start"
+    url = (
+        f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
+        f"/services/{quote(name, safe='')}/start"
+    )
     if duration:
         url += f"?duration={duration}s"
 
@@ -348,7 +360,10 @@ def stop_service(
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/{name}/stop"
+    url = (
+        f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}"
+        f"/services/{quote(name, safe='')}/stop"
+    )
     if timeout:
         url += f"?timeout={timeout}s"
 
@@ -392,7 +407,7 @@ def signal_service(sprite: Sprite, name: str, signal: str) -> None:
     Raises:
         APIError: If the API call fails.
     """
-    url = f"{sprite.client.base_url}/v1/sprites/{sprite.name}/services/signal"
+    url = f"{sprite.client.base_url}/v1/sprites/{quote(sprite.name, safe='')}/services/signal"
 
     payload = {
         "name": name,

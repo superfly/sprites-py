@@ -4,6 +4,7 @@ Sprite class representing a sprite instance
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from datetime import datetime
+from urllib.parse import quote
 import httpx
 
 from .types import (
@@ -14,8 +15,6 @@ from .types import (
     NetworkPolicy,
     PolicyRule,
     ServiceWithState,
-    ServiceRequest,
-    ServiceState,
 )
 from .exceptions import (
     SpriteError,
@@ -58,6 +57,9 @@ class Sprite:
         self.primary_region: Optional[str] = None
         self.url: Optional[str] = None
         self.url_settings: Optional[URLSettings] = None
+        self.version: Optional[str] = None
+        self.environment_version: Optional[str] = None
+        self.labels: List[str] = []
 
     def _update_from_info(self, info: Dict[str, Any]) -> None:
         """Update sprite properties from API response."""
@@ -67,6 +69,16 @@ class Sprite:
         self.url = info.get("url")
         self.primary_region = info.get("primary_region")
         self.bucket_name = info.get("bucket_name")
+        self.version = info.get("version")
+        self.environment_version = info.get("environment_version")
+        self.labels = info.get("labels") or []
+
+        if isinstance(info.get("url_settings"), dict):
+            url_settings = info["url_settings"]
+            self.url_settings = URLSettings(
+                auth=url_settings.get("auth"),
+                private_access=url_settings.get("private_access"),
+            )
 
         if "created_at" in info and info["created_at"]:
             try:
@@ -93,7 +105,7 @@ class Sprite:
 
     def _base_url(self) -> str:
         """Get sprite-specific base URL."""
-        return f"{self.client.base_url}/v1/sprites/{self.name}"
+        return f"{self.client.base_url}/v1/sprites/{quote(self.name, safe='')}"
 
     # ========== Filesystem API ==========
 
@@ -112,13 +124,13 @@ class Sprite:
 
     # ========== Lifecycle API ==========
 
-    def delete(self) -> None:
-        """Delete this sprite."""
-        self.client.delete_sprite(self.name)
-
     def destroy(self) -> None:
-        """Alias for delete()."""
-        self.delete()
+        """Destroy this sprite."""
+        self.client.destroy_sprite(self.name)
+
+    def delete(self) -> None:
+        """Alias for destroy(), named after the HTTP DELETE method."""
+        self.destroy()
 
     def upgrade(self) -> None:
         """Upgrade this sprite to the latest version."""
@@ -132,6 +144,19 @@ class Sprite:
             settings: URL settings with auth: "public" for no auth, "sprite" for authenticated
         """
         self.client.update_url_settings(self.name, settings)
+
+    def update(
+        self,
+        *,
+        url_settings: Optional[URLSettings] = None,
+        labels: Optional[List[str]] = None,
+    ) -> "Sprite":
+        """Update mutable settings for this sprite and return the refreshed sprite."""
+        return self.client.update_sprite(
+            self.name,
+            url_settings=url_settings,
+            labels=labels,
+        )
 
     # ========== Sessions API ==========
 
@@ -255,7 +280,7 @@ class Sprite:
         """
         try:
             response = self.client._client.get(
-                f"{self._base_url()}/checkpoints/{checkpoint_id}",
+                f"{self._base_url()}/checkpoints/{quote(checkpoint_id, safe='')}",
                 headers=self._headers(),
             )
         except httpx.RequestError as e:
@@ -320,6 +345,12 @@ class Sprite:
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         timeout: Optional[float] = None,
+        stdin: Any = None,
+        stdout: Any = None,
+        stderr: Any = None,
+        tty: bool = False,
+        tty_rows: int = 24,
+        tty_cols: int = 80,
     ):
         """
         Create a command to run on this sprite.
@@ -329,6 +360,12 @@ class Sprite:
             env: Environment variables
             cwd: Working directory
             timeout: Command timeout in seconds
+            stdin: Optional file-like stdin source
+            stdout: Optional file-like stdout sink
+            stderr: Optional file-like stderr sink
+            tty: Enable TTY mode
+            tty_rows: Terminal height
+            tty_cols: Terminal width
 
         Returns:
             Cmd object for executing the command
@@ -339,7 +376,41 @@ class Sprite:
             args=list(args),
             env=env,
             cwd=cwd,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            tty=tty,
+            tty_rows=tty_rows,
+            tty_cols=tty_cols,
             timeout=timeout,
+        )
+
+    def run(
+        self,
+        *args: str,
+        capture_output: bool = False,
+        timeout: Optional[float] = None,
+        check: bool = False,
+        env: Optional[Dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        tty: bool = False,
+        tty_rows: int = 24,
+        tty_cols: int = 80,
+    ):
+        """Run a command on this sprite, mirroring subprocess.run."""
+        from .exec import run
+
+        return run(
+            self,
+            *args,
+            capture_output=capture_output,
+            timeout=timeout,
+            check=check,
+            env=env,
+            cwd=cwd,
+            tty=tty,
+            tty_rows=tty_rows,
+            tty_cols=tty_cols,
         )
 
     def attach_session(
@@ -374,45 +445,8 @@ class Sprite:
         Returns:
             List of ServiceWithState objects
         """
-        try:
-            response = self.client._client.get(
-                f"{self._base_url()}/services",
-                headers=self._headers(),
-            )
-        except httpx.RequestError as e:
-            raise NetworkError(f"Network error listing services: {e}")
-
-        if not response.is_success:
-            raise SpriteError(
-                f"Failed to list services (status {response.status_code}): {response.text}"
-            )
-
-        data = response.json()
-        services: List[ServiceWithState] = []
-
-        for s in data:
-            state = None
-            if s.get("state"):
-                state = ServiceState(
-                    name=s["state"].get("name", ""),
-                    status=s["state"].get("status", "stopped"),
-                    pid=s["state"].get("pid"),
-                    started_at=s["state"].get("started_at"),
-                    error=s["state"].get("error"),
-                    restart_count=s["state"].get("restart_count", 0),
-                    next_restart_at=s["state"].get("next_restart_at"),
-                )
-
-            services.append(ServiceWithState(
-                name=s.get("name", ""),
-                cmd=s.get("cmd", ""),
-                args=s.get("args", []),
-                needs=s.get("needs", []),
-                http_port=s.get("http_port"),
-                state=state,
-            ))
-
-        return services
+        from .services import list_services
+        return list_services(self)
 
     def get_service(self, service_name: str) -> ServiceWithState:
         """
@@ -424,43 +458,8 @@ class Sprite:
         Returns:
             ServiceWithState object
         """
-        try:
-            response = self.client._client.get(
-                f"{self._base_url()}/services/{service_name}",
-                headers=self._headers(),
-            )
-        except httpx.RequestError as e:
-            raise NetworkError(f"Network error getting service: {e}")
-
-        if response.status_code == 404:
-            raise NotFoundError(f"Service not found: {service_name}")
-
-        if not response.is_success:
-            raise SpriteError(
-                f"Failed to get service (status {response.status_code}): {response.text}"
-            )
-
-        s = response.json()
-        state = None
-        if s.get("state"):
-            state = ServiceState(
-                name=s["state"].get("name", ""),
-                status=s["state"].get("status", "stopped"),
-                pid=s["state"].get("pid"),
-                started_at=s["state"].get("started_at"),
-                error=s["state"].get("error"),
-                restart_count=s["state"].get("restart_count", 0),
-                next_restart_at=s["state"].get("next_restart_at"),
-            )
-
-        return ServiceWithState(
-            name=s.get("name", ""),
-            cmd=s.get("cmd", ""),
-            args=s.get("args", []),
-            needs=s.get("needs", []),
-            http_port=s.get("http_port"),
-            state=state,
-        )
+        from .services import get_service
+        return get_service(self, service_name)
 
     def delete_service(self, service_name: str) -> None:
         """
@@ -471,7 +470,7 @@ class Sprite:
         """
         try:
             response = self.client._client.delete(
-                f"{self._base_url()}/services/{service_name}",
+                f"{self._base_url()}/services/{quote(service_name, safe='')}",
                 headers=self._headers(),
             )
         except httpx.RequestError as e:
@@ -481,6 +480,34 @@ class Sprite:
             raise SpriteError(
                 f"Failed to delete service (status {response.status_code}): {response.text}"
             )
+
+    def create_service(
+        self,
+        service_name: str,
+        cmd: str,
+        args: Optional[List[str]] = None,
+        needs: Optional[List[str]] = None,
+        http_port: Optional[int] = None,
+        duration: Optional[float] = None,
+    ):
+        """Create or update a service and return its log stream."""
+        from .services import create_service
+        return create_service(self, service_name, cmd, args, needs, http_port, duration)
+
+    def start_service(self, service_name: str, duration: Optional[float] = None):
+        """Start a service and return its log stream."""
+        from .services import start_service
+        return start_service(self, service_name, duration)
+
+    def stop_service(self, service_name: str, timeout: Optional[float] = None):
+        """Stop a service and return its log stream."""
+        from .services import stop_service
+        return stop_service(self, service_name, timeout)
+
+    def signal_service(self, service_name: str, signal: str) -> None:
+        """Send a signal to a running service."""
+        from .services import signal_service
+        signal_service(self, service_name, signal)
 
     # ========== Policy API ==========
 

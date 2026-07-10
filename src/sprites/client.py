@@ -26,6 +26,7 @@ from ._utils import (
     parse_url_settings,
     sprite_base_url,
 )
+from ._signals import signal_headers
 
 
 class SpritesClient:
@@ -51,7 +52,11 @@ class SpritesClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.control_mode = control_mode
-        self._client = httpx.Client(timeout=timeout)
+        # Attach client-signals headers/User-Agent to every request from this
+        # client. Per-request headers (Authorization, Content-Type) are merged
+        # on top by httpx. The separate token-minting client in create_token
+        # deliberately does not carry these.
+        self._client = httpx.Client(timeout=timeout, headers=signal_headers())
 
     def __enter__(self) -> "SpritesClient":
         return self

@@ -13,6 +13,7 @@ from websockets.exceptions import ConnectionClosed, InvalidStatusCode, InvalidSt
 
 from sprites.exceptions import parse_api_error
 from sprites._utils import quote_path_segment, websocket_base_url
+from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.exec import Cmd
@@ -103,7 +104,10 @@ class WSCommand:
         self.started = True
 
         url = self._build_websocket_url()
-        headers = {"Authorization": f"Bearer {self.cmd.sprite.client.token}"}
+        headers = {
+            "Authorization": f"Bearer {self.cmd.sprite.client.token}",
+            **signal_headers(),
+        }
 
         try:
             self.ws = await websockets.connect(

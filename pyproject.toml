@@ -26,9 +26,8 @@ classifiers = [
 dependencies = [
     "httpx>=0.25.0",
     "websockets>=12.0",
-    # Human-vs-agent client signals. Git ref until the Python package is
-    # published to PyPI; pin to a tag/commit once available.
-    "client-signals @ git+https://github.com/superfly/client-signals.git@main#subdirectory=python",
+    # Human-vs-agent client signals (Fly-Client-* headers + User-Agent suffix).
+    "client-signals>=0.4.1",
 ]
 
 [project.optional-dependencies]

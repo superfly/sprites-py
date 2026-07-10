@@ -11,6 +11,7 @@ import httpx
 from sprites.exceptions import APIError
 from sprites.types import ServiceLogEvent, ServiceState, ServiceWithState
 from sprites._utils import quote_path_segment, sprite_base_url
+from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -235,7 +236,7 @@ def create_service(
 
     with httpx.Client(
         timeout=120.0,
-        headers={"Authorization": f"Bearer {sprite.client.token}"},
+        headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
             response = client.put(url, json=payload)
@@ -318,7 +319,7 @@ def start_service(
 
     with httpx.Client(
         timeout=120.0,
-        headers={"Authorization": f"Bearer {sprite.client.token}"},
+        headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
             response = client.post(url)
@@ -362,7 +363,7 @@ def stop_service(
 
     with httpx.Client(
         timeout=120.0,
-        headers={"Authorization": f"Bearer {sprite.client.token}"},
+        headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
             response = client.post(url)

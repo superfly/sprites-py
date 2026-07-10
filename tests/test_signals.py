@@ -1,12 +1,18 @@
 """Tests for client-signals integration (Fly-Client-* headers + User-Agent)."""
 
+import types
+
 import httpx
 import pytest
 
+import sprites.checkpoint as checkpoint_mod
 import sprites.client as client_module
+import sprites.services as services_mod
+import sprites.session as session_mod
 import sprites._signals as signals_module
 from sprites import SpritesClient
 from sprites._signals import signal_headers
+from sprites.exceptions import APIError
 
 _PARENT_BUCKETS = {"node", "python", "shell", "other"}
 
@@ -153,3 +159,74 @@ def test_works_without_client_signals_installed(monkeypatch):
     client = SpritesClient(token="test-token")  # still fully functional
     assert not _has_fly_headers(client._client.headers.keys())
     client.close()
+
+
+# -- transient (non-shared) REST clients must also carry signals --------------
+#
+# Checkpoint, service, and session-kill paths each build their own httpx.Client
+# instead of using SpritesClient._client, so they need signals merged in too.
+
+
+class _CapturingClient:
+    """Records the headers a transient client is constructed with, then fails
+    the request (so we don't need a real server or response parsing)."""
+
+    captured_headers = None
+
+    def __init__(self, *args, **kwargs):
+        type(self).captured_headers = kwargs.get("headers") or {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def _fail(self, *args, **kwargs):
+        raise httpx.RequestError("no network in tests")
+
+    get = post = put = delete = _fail
+
+
+def _fake_sprite():
+    client = types.SimpleNamespace(token="tok", base_url="https://api.sprites.dev")
+    return types.SimpleNamespace(name="s", client=client)
+
+
+_BYPASS_CALLS = [
+    ("create_checkpoint", lambda s: checkpoint_mod.create_checkpoint(s, "c")),
+    ("restore_checkpoint", lambda s: checkpoint_mod.restore_checkpoint(s, "v1")),
+    ("create_service", lambda s: services_mod.create_service(s, "web", "run")),
+    ("start_service", lambda s: services_mod.start_service(s, "web")),
+    ("stop_service", lambda s: services_mod.stop_service(s, "web")),
+    ("kill_session", lambda s: session_mod.kill_session(s, "sess-1")),
+]
+
+
+@pytest.mark.parametrize("name, call", _BYPASS_CALLS, ids=[c[0] for c in _BYPASS_CALLS])
+def test_transient_clients_carry_signal_headers(monkeypatch, name, call):
+    _CapturingClient.captured_headers = None
+    monkeypatch.setattr(httpx, "Client", _CapturingClient)
+
+    with pytest.raises(APIError):  # the capturing client fails the request
+        call(_fake_sprite())
+
+    headers = _CapturingClient.captured_headers
+    assert _has_fly_headers(headers), f"{name} sent no Fly-Client-* headers"
+    assert any("bearer" in str(v).lower() for v in headers.values()), (
+        f"{name} dropped Authorization"
+    )
+
+
+def test_transient_client_respects_opt_out(monkeypatch):
+    # The opt-out must reach the transient paths too, not just the shared client.
+    monkeypatch.setenv("SPRITES_CLIENT_SIGNALS", "0")
+    _CapturingClient.captured_headers = None
+    monkeypatch.setattr(httpx, "Client", _CapturingClient)
+
+    with pytest.raises(APIError):
+        checkpoint_mod.create_checkpoint(_fake_sprite(), "c")
+
+    headers = _CapturingClient.captured_headers
+    assert not _has_fly_headers(headers)
+    assert any("bearer" in str(v).lower() for v in headers.values())  # auth still sent

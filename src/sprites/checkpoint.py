@@ -11,6 +11,7 @@ import httpx
 from sprites.exceptions import APIError
 from sprites.types import Checkpoint, StreamMessage
 from sprites._utils import quote_path_segment, sprite_base_url
+from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -224,7 +225,7 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
     # Use a separate client for streaming with no timeout
     with httpx.Client(
         timeout=None,
-        headers={"Authorization": f"Bearer {sprite.client.token}"},
+        headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
             response = client.post(url, json=payload, headers={"Content-Type": "application/json"})
@@ -279,7 +280,7 @@ def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
     # Use a separate client for streaming with no timeout
     with httpx.Client(
         timeout=None,
-        headers={"Authorization": f"Bearer {sprite.client.token}"},
+        headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
             response = client.post(url)

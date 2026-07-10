@@ -11,6 +11,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from sprites._utils import quote_path_segment, websocket_base_url
+from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from .sprite import Sprite
@@ -222,7 +223,10 @@ class ControlConnection:
         base_url = websocket_base_url(self.sprite.client.base_url)
         sprite_name = quote_path_segment(self.sprite.name)
         url = f"{base_url}/v1/sprites/{sprite_name}/control"
-        headers = {"Authorization": f"Bearer {self.sprite.client.token}"}
+        headers = {
+            "Authorization": f"Bearer {self.sprite.client.token}",
+            **signal_headers(),
+        }
 
         self.ws = await websockets.connect(
             url,

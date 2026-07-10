@@ -178,11 +178,23 @@ new_policy = NetworkPolicy(rules=[
 sprite.update_network_policy(new_policy)
 ```
 
+## Client signals
+
+Requests carry coarse, privacy-safe [client signals](https://github.com/superfly/client-signals)
+(`Fly-Client-*` headers + a User-Agent suffix) so Fly.io can estimate how much
+API traffic is human- vs. agent-driven. They're advisory only — never used for
+gating or rate-limiting.
+
+To opt out, set `SPRITES_CLIENT_SIGNALS=0` (also accepts `off`/`false`/`no`).
+When disabled, requests still send a plain `sprites-py/<version>` User-Agent and
+no `Fly-Client-*` headers — the SDK is otherwise unaffected.
+
 ## Requirements
 
 - Python 3.9+
 - websockets
 - httpx
+- client-signals
 
 ## License
 

@@ -189,6 +189,12 @@ To opt out, set `SPRITES_CLIENT_SIGNALS=0` (also accepts `off`/`false`/`no`).
 When disabled, requests still send a plain `sprites-py/<version>` User-Agent and
 no `Fly-Client-*` headers — the SDK is otherwise unaffected.
 
+## Integrations
+
+Framework-specific adapters are published separately so this SDK can remain
+generic. The [OpenAI Agents integration](integrations/openai-agents/README.md)
+provides a Sprites-backed implementation of the Agents SDK sandbox interface.
+
 ## Requirements
 
 - Python 3.9+

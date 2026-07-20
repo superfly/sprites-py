@@ -5,12 +5,14 @@ on:
     paths:
       - "integrations/openai-agents/**"
       - ".github/workflows/openai-agents.yml"
+      - ".github/workflows/publish-openai-agents.yml"
   push:
     branches:
       - main
     paths:
       - "integrations/openai-agents/**"
       - ".github/workflows/openai-agents.yml"
+      - ".github/workflows/publish-openai-agents.yml"
 
 jobs:
   test:

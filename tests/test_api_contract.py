@@ -161,6 +161,8 @@ def test_service_helpers_parse_api_array_shape() -> None:
                     "args": ["-m", "http.server"],
                     "needs": [],
                     "http_port": 8000,
+                    "env": {"APP_ENV": "production"},
+                    "dir": "/app",
                     "state": {
                         "name": "web",
                         "status": "running",
@@ -178,9 +180,24 @@ def test_service_helpers_parse_api_array_shape() -> None:
 
     assert len(services) == 1
     assert services[0].name == "web"
+    assert services[0].env == {"APP_ENV": "production"}
+    assert services[0].dir == "/app"
     assert services[0].state is not None
     assert services[0].state.status == "running"
     assert services[0].state.started_at is not None
+
+
+def test_service_helpers_default_omitted_env_and_dir() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/sprites/demo/services/web"
+        return httpx.Response(200, json={"name": "web", "cmd": "run"})
+
+    client = make_client(handler)
+
+    service = client.sprite("demo").get_service("web")
+
+    assert service.env == {}
+    assert service.dir is None
 
 
 def test_sprite_command_accepts_documented_tty_options() -> None:

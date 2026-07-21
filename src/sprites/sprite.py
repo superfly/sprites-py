@@ -482,10 +482,23 @@ class Sprite:
         needs: Optional[List[str]] = None,
         http_port: Optional[int] = None,
         duration: Optional[float] = None,
+        *,
+        env: Optional[Dict[str, str]] = None,
+        dir: Optional[str] = None,
     ):
         """Create or update a service and return its log stream."""
         from .services import create_service
-        return create_service(self, service_name, cmd, args, needs, http_port, duration)
+        return create_service(
+            self,
+            service_name,
+            cmd,
+            args,
+            needs,
+            http_port,
+            duration,
+            env=env,
+            dir=dir,
+        )
 
     def start_service(self, service_name: str, duration: Optional[float] = None):
         """Start a service and return its log stream."""

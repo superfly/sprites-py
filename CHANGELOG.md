@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Added `env` and `dir` support when creating services and parsing service responses.
+
 ## 0.2.0
 
 - Updated the SDK for the current Sprites API response and request shapes.

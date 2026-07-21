@@ -98,6 +98,8 @@ def _parse_service_with_state(data: dict) -> ServiceWithState:
         args=data.get("args", []),
         needs=data.get("needs", []),
         http_port=data.get("http_port"),
+        env=data.get("env", {}),
+        dir=data.get("dir"),
         state=state,
     )
 
@@ -204,6 +206,9 @@ def create_service(
     needs: Optional[list[str]] = None,
     http_port: Optional[int] = None,
     duration: Optional[float] = None,
+    *,
+    env: Optional[dict[str, str]] = None,
+    dir: Optional[str] = None,
 ) -> ServiceStream:
     """Create or update a service.
 
@@ -215,6 +220,8 @@ def create_service(
         needs: Services this service depends on.
         http_port: HTTP port the service listens on.
         duration: Monitoring duration in seconds.
+        env: Environment variables for the service.
+        dir: Working directory for the service.
 
     Returns:
         A stream of service log events.
@@ -226,13 +233,17 @@ def create_service(
     if duration:
         url += f"?duration={duration}s"
 
-    payload = {"cmd": cmd}
+    payload: dict[str, object] = {"cmd": cmd}
     if args:
         payload["args"] = args
     if needs:
         payload["needs"] = needs
     if http_port is not None:
         payload["http_port"] = http_port
+    if env is not None:
+        payload["env"] = env
+    if dir is not None:
+        payload["dir"] = dir
 
     with httpx.Client(
         timeout=120.0,

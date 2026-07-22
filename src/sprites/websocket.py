@@ -116,6 +116,13 @@ class WSCommand:
                 ping_interval=WS_PING_INTERVAL,
                 ping_timeout=WS_PONG_WAIT,
                 max_size=10 * 1024 * 1024,  # 10MB max message size
+                # The server holds the WS open for ~5s after sending EXIT
+                # before initiating its own close. The Elixir SDK doesn't
+                # wait at all — it sends a CLOSE frame and tears the TCP.
+                # Mirror that: close_timeout=0 sends CLOSE without awaiting
+                # the server's reciprocal frame, dropping per-exec latency
+                # from ~5.3s to ~140ms (a ~38x speedup). See #24.
+                close_timeout=0,
             )
         except InvalidStatusCode as e:
             # Try to parse as a structured API error

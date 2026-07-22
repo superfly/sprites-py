@@ -146,6 +146,8 @@ class Service:
     args: List[str] = field(default_factory=list)
     needs: List[str] = field(default_factory=list)
     http_port: Optional[int] = None
+    env: Dict[str, str] = field(default_factory=dict)
+    dir: Optional[str] = None
 
 
 @dataclass
@@ -173,6 +175,8 @@ class ServiceRequest:
     args: Optional[List[str]] = None
     needs: Optional[List[str]] = None
     http_port: Optional[int] = None
+    env: Optional[Dict[str, str]] = None
+    dir: Optional[str] = None
 
 
 @dataclass

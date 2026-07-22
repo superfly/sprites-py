@@ -152,6 +152,8 @@ stream = sprite.create_service(
     cmd="python",
     args=["-m", "http.server", "8000"],
     http_port=8000,
+    env={"APP_ENV": "production"},
+    dir="/app",
 )
 for event in stream:
     print(event.type, event.data)

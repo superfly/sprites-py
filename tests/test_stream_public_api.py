@@ -126,6 +126,8 @@ def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> No
             needs=["db"],
             http_port=8000,
             duration=1.5,
+            env={"APP_ENV": "test"},
+            dir="/app",
         )
     )
     start_events = list(sprite.start_service("web api", duration=2.0))
@@ -144,6 +146,8 @@ def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> No
                 "args": ["-m", "http.server"],
                 "needs": ["db"],
                 "http_port": 8000,
+                "env": {"APP_ENV": "test"},
+                "dir": "/app",
             }
         },
     )
@@ -157,3 +161,33 @@ def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> No
         "https://api.test/v1/sprites/demo%2Fname/services/web%20api/stop?timeout=3.0s",
         {},
     )
+
+
+def test_create_service_preserves_positional_duration_and_empty_env(monkeypatch) -> None:
+    captured = []
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def put(self, url, **kwargs):
+            captured.append((url, kwargs))
+            return httpx.Response(200, text='{"type":"exit","exit_code":0}\n')
+
+    monkeypatch.setattr(services_module.httpx, "Client", FakeClient)
+    sprite = SpritesClient("test-token", base_url="https://api.test").sprite("demo")
+
+    list(sprite.create_service("worker", "run", None, None, None, 2.5, env={}))
+
+    assert captured == [
+        (
+            "https://api.test/v1/sprites/demo/services/worker?duration=2.5s",
+            {"json": {"cmd": "run", "env": {}}},
+        )
+    ]

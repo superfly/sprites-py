@@ -2,30 +2,31 @@
 Sprite class representing a sprite instance
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 import httpx
 
+from ._utils import parse_sprite_info, quote_path_segment, sprite_base_url
+from .exceptions import (
+    NetworkError,
+    NotFoundError,
+    SpriteError,
+)
 from .types import (
-    SpriteConfig,
-    URLSettings,
     Checkpoint,
-    Session,
     NetworkPolicy,
     PolicyRule,
     ServiceWithState,
+    Session,
+    SpriteConfig,
+    URLSettings,
 )
-from .exceptions import (
-    SpriteError,
-    NetworkError,
-    NotFoundError,
-)
-from ._utils import parse_sprite_info, quote_path_segment, sprite_base_url
 
 if TYPE_CHECKING:
     from .client import SpritesClient
-    from .filesystem import SpriteFilesystem
     from .control import ControlConnection
+    from .filesystem import SpriteFilesystem
 
 
 class Sprite:
@@ -107,6 +108,7 @@ class Sprite:
             SpriteFilesystem instance that supports pathlib.Path-like operations
         """
         from .filesystem import SpriteFilesystem
+
         return SpriteFilesystem(self, working_dir)
 
     # ========== Lifecycle API ==========
@@ -192,22 +194,26 @@ class Sprite:
                 except (ValueError, AttributeError):
                     pass
 
-            sessions.append(Session(
-                id=s.get("id", ""),
-                command=s.get("command", ""),
-                workdir=s.get("workdir", ""),
-                created=created,
-                bytes_per_second=s.get("bytes_per_second", 0),
-                is_active=s.get("is_active", False),
-                tty=s.get("tty", False),
-                last_activity=last_activity,
-            ))
+            sessions.append(
+                Session(
+                    id=s.get("id", ""),
+                    command=s.get("command", ""),
+                    workdir=s.get("workdir", ""),
+                    created=created,
+                    bytes_per_second=s.get("bytes_per_second", 0),
+                    is_active=s.get("is_active", False),
+                    tty=s.get("tty", False),
+                    last_activity=last_activity,
+                )
+            )
 
         return sessions
 
     # ========== Checkpoint API ==========
 
-    def list_checkpoints(self, history_filter: Optional[str] = None) -> List[Checkpoint]:
+    def list_checkpoints(
+        self, history_filter: Optional[str] = None
+    ) -> List[Checkpoint]:
         """
         List checkpoints.
 
@@ -249,12 +255,14 @@ class Sprite:
                 except (ValueError, AttributeError):
                     pass
 
-            checkpoints.append(Checkpoint(
-                id=cp.get("id", ""),
-                create_time=create_time,
-                comment=cp.get("comment"),
-                history=cp.get("history"),
-            ))
+            checkpoints.append(
+                Checkpoint(
+                    id=cp.get("id", ""),
+                    create_time=create_time,
+                    comment=cp.get("comment"),
+                    history=cp.get("history"),
+                )
+            )
 
         return checkpoints
 
@@ -312,6 +320,7 @@ class Sprite:
             Iterator of checkpoint creation messages
         """
         from .checkpoint import create_checkpoint
+
         return create_checkpoint(self, comment)
 
     def restore_checkpoint(self, checkpoint_id: str):
@@ -325,6 +334,7 @@ class Sprite:
             Iterator of restore messages
         """
         from .checkpoint import restore_checkpoint
+
         return restore_checkpoint(self, checkpoint_id)
 
     # ========== Command Execution API ==========
@@ -361,6 +371,7 @@ class Sprite:
             Cmd object for executing the command
         """
         from .exec import Cmd
+
         return Cmd(
             sprite=self,
             args=list(args),
@@ -422,6 +433,7 @@ class Sprite:
             Cmd object for the attached session
         """
         from .exec import Cmd
+
         return Cmd(
             sprite=self,
             args=[],
@@ -439,6 +451,7 @@ class Sprite:
             List of ServiceWithState objects
         """
         from .services import list_services
+
         return list_services(self)
 
     def get_service(self, service_name: str) -> ServiceWithState:
@@ -452,6 +465,7 @@ class Sprite:
             ServiceWithState object
         """
         from .services import get_service
+
         return get_service(self, service_name)
 
     def delete_service(self, service_name: str) -> None:
@@ -488,6 +502,7 @@ class Sprite:
     ):
         """Create or update a service and return its log stream."""
         from .services import create_service
+
         return create_service(
             self,
             service_name,
@@ -503,16 +518,19 @@ class Sprite:
     def start_service(self, service_name: str, duration: Optional[float] = None):
         """Start a service and return its log stream."""
         from .services import start_service
+
         return start_service(self, service_name, duration)
 
     def stop_service(self, service_name: str, timeout: Optional[float] = None):
         """Stop a service and return its log stream."""
         from .services import stop_service
+
         return stop_service(self, service_name, timeout)
 
     def signal_service(self, service_name: str, signal: str) -> None:
         """Send a signal to a running service."""
         from .services import signal_service
+
         signal_service(self, service_name, signal)
 
     # ========== Policy API ==========
@@ -541,11 +559,13 @@ class Sprite:
         rules: List[PolicyRule] = []
 
         for r in data.get("rules", []):
-            rules.append(PolicyRule(
-                domain=r.get("domain"),
-                action=r.get("action"),
-                include=r.get("include"),
-            ))
+            rules.append(
+                PolicyRule(
+                    domain=r.get("domain"),
+                    action=r.get("action"),
+                    include=r.get("include"),
+                )
+            )
 
         return NetworkPolicy(rules=rules)
 
@@ -598,11 +618,13 @@ class Sprite:
             ControlConnection instance
         """
         from .control import get_control_connection
+
         return await get_control_connection(self)
 
     async def close_control_connection(self) -> None:
         """Close the control connection if open."""
         from .control import close_control_connection
+
         await close_control_connection(self)
 
     def has_control_connection(self) -> bool:
@@ -614,4 +636,5 @@ class Sprite:
             True if a control connection pool exists with active connections
         """
         from .control import has_control_connection
+
         return has_control_connection(self)

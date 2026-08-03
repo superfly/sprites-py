@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 import httpx
 
 import sprites.checkpoint as checkpoint_module
@@ -34,8 +32,12 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
 ) -> None:
     captured = []
     responses = [
-        httpx.Response(200, text='{"type":"progress","data":"saving"}\n{"type":"done"}\n'),
-        httpx.Response(200, text='{"type":"progress","data":"restoring"}\n{"type":"done"}\n'),
+        httpx.Response(
+            200, text='{"type":"progress","data":"saving"}\n{"type":"done"}\n'
+        ),
+        httpx.Response(
+            200, text='{"type":"progress","data":"restoring"}\n{"type":"done"}\n'
+        ),
     ]
 
     class FakeClient:
@@ -54,7 +56,9 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
             return responses.pop(0)
 
     monkeypatch.setattr(checkpoint_module.httpx, "Client", FakeClient)
-    sprite = SpritesClient("test-token", base_url="https://api.test").sprite("demo/name")
+    sprite = SpritesClient("test-token", base_url="https://api.test").sprite(
+        "demo/name"
+    )
 
     create_messages = list(sprite.create_checkpoint("before upgrade"))
     restore_messages = list(sprite.restore_checkpoint("checkpoint one"))
@@ -91,7 +95,9 @@ def test_service_stream_process_all() -> None:
 def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> None:
     captured = []
     responses = [
-        httpx.Response(200, text='{"type":"log","data":"created"}\n{"type":"exit","exit_code":0}\n'),
+        httpx.Response(
+            200, text='{"type":"log","data":"created"}\n{"type":"exit","exit_code":0}\n'
+        ),
         httpx.Response(200, text='{"type":"log","data":"started"}\n'),
         httpx.Response(200, text='{"type":"log","data":"stopped"}\n'),
     ]
@@ -116,7 +122,9 @@ def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> No
             return responses.pop(0)
 
     monkeypatch.setattr(services_module.httpx, "Client", FakeClient)
-    sprite = SpritesClient("test-token", base_url="https://api.test").sprite("demo/name")
+    sprite = SpritesClient("test-token", base_url="https://api.test").sprite(
+        "demo/name"
+    )
 
     create_events = list(
         sprite.create_service(
@@ -163,7 +171,9 @@ def test_create_start_and_stop_service_post_and_parse_streams(monkeypatch) -> No
     )
 
 
-def test_create_service_preserves_positional_duration_and_empty_env(monkeypatch) -> None:
+def test_create_service_preserves_positional_duration_and_empty_env(
+    monkeypatch,
+) -> None:
     captured = []
 
     class FakeClient:

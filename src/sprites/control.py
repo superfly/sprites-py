@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional, Callable
-from urllib.parse import urlencode
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from sprites._utils import quote_path_segment, websocket_base_url
 from sprites._signals import signal_headers
+from sprites._utils import quote_path_segment, websocket_base_url
 
 if TYPE_CHECKING:
     from .sprite import Sprite
@@ -29,6 +29,7 @@ WS_PONG_WAIT = 45  # seconds
 
 class StreamID:
     """Stream identifiers for the binary protocol."""
+
     STDIN = 0
     STDOUT = 1
     STDERR = 2
@@ -265,7 +266,7 @@ class ControlConnection:
         """
         # Check for control message
         if isinstance(message, str) and message.startswith(CONTROL_PREFIX):
-            payload = message[len(CONTROL_PREFIX):]
+            payload = message[len(CONTROL_PREFIX) :]
             try:
                 msg = json.loads(payload)
                 self._handle_control_message(msg)
@@ -483,7 +484,9 @@ class ControlPool:
                 return cc
 
             # Pool is full, wait for a connection
-            waiter: asyncio.Future[ControlConnection] = asyncio.get_event_loop().create_future()
+            waiter: asyncio.Future[ControlConnection] = (
+                asyncio.get_event_loop().create_future()
+            )
             self.waiters.append(waiter)
 
         # Wait outside the lock
@@ -519,8 +522,7 @@ class ControlPool:
 
         # Find idle connections (not active, not closed)
         idle_conns = [
-            cc for cc in self.conns
-            if not cc.op_active and not cc.is_closed()
+            cc for cc in self.conns if not cc.op_active and not cc.is_closed()
         ]
 
         # Sort by least recently used (we don't track last_used, so just take from end)
@@ -659,5 +661,4 @@ def _cleanup_on_exit() -> None:
 
 
 # Register cleanup handler
-import atexit
 atexit.register(_cleanup_on_exit)

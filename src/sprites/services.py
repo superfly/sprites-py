@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 import httpx
 
+from sprites._signals import signal_headers
+from sprites._utils import quote_path_segment, sprite_base_url
 from sprites.exceptions import APIError
 from sprites.types import ServiceLogEvent, ServiceState, ServiceWithState
-from sprites._utils import quote_path_segment, sprite_base_url
-from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -41,7 +41,7 @@ class ServiceStream:
         self._index += 1
         return msg
 
-    def process_all(self, handler: callable) -> None:
+    def process_all(self, handler: Callable[[ServiceLogEvent], None]) -> None:
         """Process all messages with a handler function.
 
         Args:
@@ -70,7 +70,9 @@ def _parse_service_with_state(data: dict) -> ServiceWithState:
         started_at_str = state_data.get("started_at")
         if started_at_str:
             try:
-                started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(
+                    started_at_str.replace("Z", "+00:00")
+                )
             except ValueError:
                 pass
 
@@ -78,7 +80,9 @@ def _parse_service_with_state(data: dict) -> ServiceWithState:
         next_restart_str = state_data.get("next_restart_at")
         if next_restart_str:
             try:
-                next_restart_at = datetime.fromisoformat(next_restart_str.replace("Z", "+00:00"))
+                next_restart_at = datetime.fromisoformat(
+                    next_restart_str.replace("Z", "+00:00")
+                )
             except ValueError:
                 pass
 
@@ -256,7 +260,7 @@ def create_service(
 
         if response.status_code == 409:
             raise APIError(
-                f"Service conflict",
+                "Service conflict",
                 status_code=409,
                 response=response.text,
             )
@@ -293,7 +297,7 @@ def delete_service(sprite: Sprite, name: str) -> None:
 
     if response.status_code == 409:
         raise APIError(
-            f"Service conflict",
+            "Service conflict",
             status_code=409,
             response=response.text,
         )
@@ -386,7 +390,7 @@ def stop_service(
 
         if response.status_code == 409:
             raise APIError(
-                f"Service not running",
+                "Service not running",
                 status_code=409,
                 response=response.text,
             )
@@ -429,7 +433,7 @@ def signal_service(sprite: Sprite, name: str, signal: str) -> None:
 
     if response.status_code == 409:
         raise APIError(
-            f"Service not running",
+            "Service not running",
             status_code=409,
             response=response.text,
         )

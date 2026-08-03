@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import urlencode
 
 import websockets
-from websockets.exceptions import ConnectionClosed, InvalidStatusCode, InvalidStatus
+from websockets.exceptions import ConnectionClosed, InvalidStatus, InvalidStatusCode
 
-from sprites.exceptions import parse_api_error
-from sprites._utils import quote_path_segment, websocket_base_url
 from sprites._signals import signal_headers
+from sprites._utils import quote_path_segment, websocket_base_url
+from sprites.exceptions import parse_api_error
 
 if TYPE_CHECKING:
     from sprites.exec import Cmd
@@ -189,7 +189,9 @@ class WSCommand:
                     self.exit_code = 0
             else:
                 # Non-normal closure - treat as error
-                error_msg = f"WebSocket ConnectionClosed: code={e.code}, reason={e.reason}\n"
+                error_msg = (
+                    f"WebSocket ConnectionClosed: code={e.code}, reason={e.reason}\n"
+                )
                 self._stderr_buffer.extend(error_msg.encode())
                 if self.exit_code < 0:
                     self.exit_code = 1
@@ -486,7 +488,7 @@ async def run_ws_command_via_control(cmd: Cmd) -> int:
 
         return exit_code
 
-    except (InvalidStatusCode, InvalidStatus) as e:
+    except (InvalidStatusCode, InvalidStatus):
         # Control endpoint returned error (likely 404) - fall back to direct mode
         # Release connection if we got one
         if cc is not None:

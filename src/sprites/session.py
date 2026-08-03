@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Callable, Iterator
 
 import httpx
 
+from sprites._signals import signal_headers
+from sprites._utils import quote_path_segment, sprite_base_url
 from sprites.exceptions import APIError
 from sprites.types import Session, StreamMessage
-from sprites._utils import quote_path_segment, sprite_base_url
-from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -41,7 +41,7 @@ class KillStream:
         self._index += 1
         return msg
 
-    def process_all(self, handler: callable) -> None:
+    def process_all(self, handler: Callable[[StreamMessage], None]) -> None:
         """Process all messages with a handler function.
 
         Args:
@@ -106,7 +106,9 @@ def list_sessions(sprite: Sprite) -> list[Session]:
         last_activity_str = s.get("last_activity")
         if last_activity_str:
             try:
-                last_activity = datetime.fromisoformat(last_activity_str.replace("Z", "+00:00"))
+                last_activity = datetime.fromisoformat(
+                    last_activity_str.replace("Z", "+00:00")
+                )
             except ValueError:
                 pass
 

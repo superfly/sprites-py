@@ -4,12 +4,13 @@ Type definitions for the Sprites SDK
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
 class ClientOptions:
     """Client configuration options."""
+
     base_url: str = "https://api.sprites.dev"
     timeout: float = 30.0
 
@@ -17,6 +18,7 @@ class ClientOptions:
 @dataclass
 class URLSettings:
     """URL authentication settings."""
+
     auth: Optional[str] = None  # "public" or "sprite"
     private_access: Optional[str] = None
 
@@ -24,6 +26,7 @@ class URLSettings:
 @dataclass
 class SpriteConfig:
     """Sprite configuration options for creation."""
+
     ram_mb: Optional[int] = None
     cpus: Optional[int] = None
     region: Optional[str] = None
@@ -33,6 +36,7 @@ class SpriteConfig:
 @dataclass
 class SpawnOptions:
     """Options for spawning a command."""
+
     cwd: Optional[str] = None
     env: Optional[Dict[str, str]] = None
     tty: bool = False
@@ -46,6 +50,7 @@ class SpawnOptions:
 @dataclass
 class ExecOptions(SpawnOptions):
     """Options for exec methods."""
+
     encoding: str = "utf-8"
     max_buffer: int = 10 * 1024 * 1024  # 10MB
 
@@ -53,6 +58,7 @@ class ExecOptions(SpawnOptions):
 @dataclass
 class ExecResult:
     """Result from exec methods."""
+
     stdout: bytes
     stderr: bytes
     exit_code: int
@@ -61,6 +67,7 @@ class ExecResult:
 @dataclass
 class SpriteInfo:
     """Sprite information from the API."""
+
     id: str
     name: str
     organization: str
@@ -83,6 +90,7 @@ class SpriteInfo:
 @dataclass
 class ListOptions:
     """Options for listing sprites."""
+
     prefix: Optional[str] = None
     max_results: Optional[int] = None
     continuation_token: Optional[str] = None
@@ -92,6 +100,7 @@ class ListOptions:
 @dataclass
 class SpriteList:
     """Paginated list of sprites."""
+
     sprites: List[SpriteInfo]
     has_more: bool
     next_continuation_token: Optional[str] = None
@@ -103,6 +112,7 @@ class SpriteList:
 @dataclass
 class Session:
     """Execution session information."""
+
     id: str
     command: str
     workdir: str
@@ -116,6 +126,7 @@ class Session:
 @dataclass
 class Checkpoint:
     """Checkpoint information."""
+
     id: str
     create_time: datetime
     comment: Optional[str] = None
@@ -125,6 +136,7 @@ class Checkpoint:
 @dataclass
 class StreamMessage:
     """Streaming message from checkpoint/restore operations."""
+
     type: str  # "info", "stdout", "stderr", "error"
     data: Optional[str] = None
     error: Optional[str] = None
@@ -133,6 +145,7 @@ class StreamMessage:
 @dataclass
 class PortMapping:
     """Port mapping for proxy operations."""
+
     local_port: int
     remote_port: int
     remote_host: str = "localhost"
@@ -141,6 +154,7 @@ class PortMapping:
 @dataclass
 class Service:
     """Service definition."""
+
     name: str
     cmd: str
     args: List[str] = field(default_factory=list)
@@ -153,6 +167,7 @@ class Service:
 @dataclass
 class ServiceState:
     """Service state information."""
+
     name: str
     status: str  # "stopped", "starting", "running", "stopping", "failed"
     pid: Optional[int] = None
@@ -165,12 +180,14 @@ class ServiceState:
 @dataclass
 class ServiceWithState(Service):
     """Service with its current state."""
+
     state: Optional[ServiceState] = None
 
 
 @dataclass
 class ServiceRequest:
     """Request body for creating/updating a service."""
+
     cmd: str
     args: Optional[List[str]] = None
     needs: Optional[List[str]] = None
@@ -182,6 +199,7 @@ class ServiceRequest:
 @dataclass
 class ServiceLogEvent:
     """Service log event from NDJSON stream."""
+
     type: str  # "stdout", "stderr", "exit", "error", "complete", "started", "stopping", "stopped"
     data: Optional[str] = None
     exit_code: Optional[int] = None
@@ -192,6 +210,7 @@ class ServiceLogEvent:
 @dataclass
 class PolicyRule:
     """Network policy rule."""
+
     domain: Optional[str] = None
     action: Optional[str] = None  # "allow" or "deny"
     include: Optional[str] = None
@@ -200,14 +219,17 @@ class PolicyRule:
 @dataclass
 class NetworkPolicy:
     """Network policy document."""
+
     rules: List[PolicyRule] = field(default_factory=list)
 
 
 # Filesystem types
 
+
 @dataclass
 class FileStat:
     """File/directory statistics."""
+
     name: str
     path: str
     size: int
@@ -223,6 +245,7 @@ class FileStat:
 @dataclass
 class DirEntry:
     """Directory entry information."""
+
     name: str
     path: str
     is_dir: bool
@@ -238,6 +261,7 @@ class DirEntry:
 @dataclass
 class FSListResponse:
     """Response from /fs/list endpoint."""
+
     path: str
     entries: List[DirEntry]
     count: int
@@ -246,6 +270,7 @@ class FSListResponse:
 @dataclass
 class FSWriteResponse:
     """Response from /fs/write endpoint."""
+
     path: str
     size: int
     mode: str
@@ -254,6 +279,7 @@ class FSWriteResponse:
 @dataclass
 class FSDeleteResponse:
     """Response from /fs/delete endpoint."""
+
     deleted: List[str]
     count: int
 
@@ -261,6 +287,7 @@ class FSDeleteResponse:
 @dataclass
 class FSRenameResponse:
     """Response from /fs/rename endpoint."""
+
     source: str
     dest: str
 
@@ -268,6 +295,7 @@ class FSRenameResponse:
 @dataclass
 class FSCopyResponse:
     """Response from /fs/copy endpoint."""
+
     source: str
     dest: str
     count: int
@@ -276,6 +304,7 @@ class FSCopyResponse:
 @dataclass
 class FSChmodResponse:
     """Response from /fs/chmod endpoint."""
+
     path: str
     mode: str
     count: int

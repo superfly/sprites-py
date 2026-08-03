@@ -3,30 +3,33 @@ Sprites client implementation
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 import httpx
 
-from .types import (
-    ClientOptions,
-    SpriteConfig,
-    SpriteInfo,
-    SpriteList,
-    ListOptions,
-    URLSettings,
-)
-from .exceptions import (
-    SpriteError,
-    NetworkError,
-    AuthenticationError,
-    NotFoundError,
-)
+from ._signals import signal_headers
 from ._utils import (
     parse_datetime,
     parse_sprite_info,
     parse_url_settings,
     sprite_base_url,
 )
-from ._signals import signal_headers
+from .exceptions import (
+    AuthenticationError,
+    NetworkError,
+    NotFoundError,
+    SpriteError,
+)
+from .types import (
+    ListOptions,
+    SpriteConfig,
+    SpriteInfo,
+    SpriteList,
+    URLSettings,
+)
+
+if TYPE_CHECKING:
+    from .sprite import Sprite
 
 
 class SpritesClient:
@@ -121,6 +124,7 @@ class SpritesClient:
             Sprite instance
         """
         from .sprite import Sprite
+
         return Sprite(name, self)
 
     def create_sprite(
@@ -151,19 +155,23 @@ class SpritesClient:
         request: Dict[str, Any] = {"name": name}
         if config:
             request["config"] = {
-                k: v for k, v in {
+                k: v
+                for k, v in {
                     "ram_mb": config.ram_mb,
                     "cpus": config.cpus,
                     "region": config.region,
                     "storage_gb": config.storage_gb,
-                }.items() if v is not None
+                }.items()
+                if v is not None
             }
         if url_settings:
             request["url_settings"] = {
-                k: v for k, v in {
+                k: v
+                for k, v in {
                     "auth": url_settings.auth,
                     "private_access": url_settings.private_access,
-                }.items() if v is not None
+                }.items()
+                if v is not None
             }
         if labels is not None:
             request["labels"] = labels
@@ -274,11 +282,13 @@ class SpritesClient:
         continuation_token: Optional[str] = None
 
         while True:
-            result = self.list_sprites(ListOptions(
-                prefix=prefix,
-                max_results=100,
-                continuation_token=continuation_token,
-            ))
+            result = self.list_sprites(
+                ListOptions(
+                    prefix=prefix,
+                    max_results=100,
+                    continuation_token=continuation_token,
+                )
+            )
 
             for info in result.sprites:
                 sprite = Sprite(info.name, self)
@@ -355,10 +365,12 @@ class SpritesClient:
                 headers=self._headers(),
                 json={
                     "url_settings": {
-                        k: v for k, v in {
+                        k: v
+                        for k, v in {
                             "auth": settings.auth,
                             "private_access": settings.private_access,
-                        }.items() if v is not None
+                        }.items()
+                        if v is not None
                     }
                 },
             )
@@ -394,10 +406,12 @@ class SpritesClient:
         body: Dict[str, Any] = {}
         if url_settings is not None:
             body["url_settings"] = {
-                k: v for k, v in {
+                k: v
+                for k, v in {
                     "auth": url_settings.auth,
                     "private_access": url_settings.private_access,
-                }.items() if v is not None
+                }.items()
+                if v is not None
             }
         if labels is not None:
             body["labels"] = labels
@@ -419,9 +433,7 @@ class SpritesClient:
 
     @staticmethod
     def create_token(
-        fly_macaroon: str,
-        org_slug: str,
-        invite_code: Optional[str] = None
+        fly_macaroon: str, org_slug: str, invite_code: Optional[str] = None
     ) -> str:
         """
         Create a sprite access token using a Fly.io macaroon token.
@@ -463,7 +475,10 @@ class SpritesClient:
             if "token" not in result:
                 raise SpriteError("No token returned in response")
 
-            return result["token"]
+            token = result["token"]
+            if not isinstance(token, str):
+                raise SpriteError("Invalid token returned in response")
+            return token
 
 
 class _AuthenticatedClient:

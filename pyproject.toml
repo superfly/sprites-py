@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,13 @@ version = "0.4.0"
 description = "Python SDK for the Sprites API"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Sprites Team"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -32,9 +31,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
-    "mypy>=1.0",
+    "mypy>=1.0,<2",
+    "ruff>=0.11",
 ]
 
 [project.scripts]
@@ -45,5 +46,14 @@ where = ["src"]
 
 [tool.mypy]
 python_version = "3.9"
+follow_imports = "skip"
+ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

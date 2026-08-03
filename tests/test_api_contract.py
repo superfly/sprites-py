@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import pytest
-import httpx
-import json
 import asyncio
+import json
+
+import httpx
+import pytest
 
 from sprites import ListOptions, SpritesClient, URLSettings
 from sprites.exceptions import TimeoutError
@@ -103,7 +104,11 @@ def test_update_sprite_can_update_labels_and_url_settings() -> None:
         assert body["url_settings"] == {"auth": "sprite"}
         return httpx.Response(
             200,
-            json={"name": "demo", "labels": ["sdk", "python"], "url_settings": {"auth": "sprite"}},
+            json={
+                "name": "demo",
+                "labels": ["sdk", "python"],
+                "url_settings": {"auth": "sprite"},
+            },
         )
 
     client = make_client(handler)
@@ -127,7 +132,9 @@ def test_update_sprite_sends_only_supplied_partial_fields() -> None:
     client = make_client(handler)
 
     labels_only = client.update_sprite("demo", labels=["sdk"])
-    settings_only = client.update_sprite("demo", url_settings=URLSettings(auth="public"))
+    settings_only = client.update_sprite(
+        "demo", url_settings=URLSettings(auth="public")
+    )
 
     assert bodies == [
         {"labels": ["sdk"]},

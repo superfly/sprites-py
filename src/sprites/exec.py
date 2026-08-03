@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import io
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, BinaryIO, Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, BinaryIO, Callable
 
 from sprites.exceptions import ExitError, TimeoutError
 
@@ -105,7 +104,9 @@ class Cmd:
         """
         code = self._run_sync()
         if code != 0:
-            raise ExitError(f"exit status {code}", code, self._stdout_data, self._stderr_data)
+            raise ExitError(
+                f"exit status {code}", code, self._stdout_data, self._stderr_data
+            )
 
     def output(self) -> bytes:
         """Run command and return stdout (like exec.Cmd.Output).
@@ -125,7 +126,9 @@ class Cmd:
         code = self._run_sync()
 
         if code != 0:
-            raise ExitError(f"exit status {code}", code, self._stdout_data, self._stderr_data)
+            raise ExitError(
+                f"exit status {code}", code, self._stdout_data, self._stderr_data
+            )
 
         return self._stdout_data
 
@@ -166,6 +169,7 @@ class Cmd:
         try:
             # Use the persistent event loop for connection reuse
             from sprites.loop import run_sync
+
             return run_sync(self._run_async(), timeout=self.timeout)
         finally:
             self._finished = True
@@ -176,7 +180,9 @@ class Cmd:
 
         if self.timeout is not None and self.timeout > 0:
             try:
-                return await asyncio.wait_for(run_ws_command(self), timeout=self.timeout)
+                return await asyncio.wait_for(
+                    run_ws_command(self), timeout=self.timeout
+                )
             except asyncio.TimeoutError:
                 raise TimeoutError(f"command timed out after {self.timeout}s") from None
         else:
@@ -249,6 +255,8 @@ def run(
     )
 
     if check and code != 0:
-        raise ExitError(f"exit status {code}", code, result.stdout or b"", result.stderr or b"")
+        raise ExitError(
+            f"exit status {code}", code, result.stdout or b"", result.stderr or b""
+        )
 
     return result

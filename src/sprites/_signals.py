@@ -22,7 +22,9 @@ from typing import Dict
 
 try:
     import client_signals
-except ImportError:  # degrade gracefully; the dependency is declared but optional at runtime
+except (
+    ImportError
+):  # degrade gracefully; the dependency is declared but optional at runtime
     client_signals = None  # type: ignore[assignment]
 
 
@@ -38,7 +40,9 @@ _DISABLE_VALUES = {"0", "off", "false", "no", "disabled"}
 
 
 def _disabled() -> bool:
-    return os.environ.get("SPRITES_CLIENT_SIGNALS", "").strip().lower() in _DISABLE_VALUES
+    return (
+        os.environ.get("SPRITES_CLIENT_SIGNALS", "").strip().lower() in _DISABLE_VALUES
+    )
 
 
 @functools.lru_cache(maxsize=1)
@@ -49,7 +53,7 @@ def _computed() -> Dict[str, str]:
     if client_signals is None or _disabled():
         return {"User-Agent": ua}
     signals = client_signals.detect_once()
-    headers = client_signals.headers_for(signals)
+    headers: Dict[str, str] = client_signals.headers_for(signals)
     headers["User-Agent"] = f"{ua} {client_signals.user_agent_suffix(signals)}"
     return headers
 

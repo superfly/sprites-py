@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from sprites._utils import sprite_base_url
 from sprites.exceptions import APIError
 from sprites.types import NetworkPolicy, PolicyRule
-from sprites._utils import sprite_base_url
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite

@@ -1,13 +1,12 @@
 """Tests for the Sprites SDK exceptions module."""
 
 import json
-import pytest
 
 from sprites.exceptions import (
+    ERR_CODE_CONCURRENT_LIMIT_EXCEEDED,
+    ERR_CODE_CREATION_RATE_LIMITED,
     APIError,
     parse_api_error,
-    ERR_CODE_CREATION_RATE_LIMITED,
-    ERR_CODE_CONCURRENT_LIMIT_EXCEEDED,
 )
 
 
@@ -134,15 +133,17 @@ class TestParseAPIError:
 
     def test_parses_json_body(self):
         """Test parsing a JSON error response body."""
-        body = json.dumps({
-            "error": "sprite_creation_rate_limited",
-            "message": "Rate limit exceeded",
-            "limit": 10,
-            "window_seconds": 60,
-            "retry_after_seconds": 30,
-            "upgrade_available": True,
-            "upgrade_url": "https://fly.io/upgrade",
-        }).encode()
+        body = json.dumps(
+            {
+                "error": "sprite_creation_rate_limited",
+                "message": "Rate limit exceeded",
+                "limit": 10,
+                "window_seconds": 60,
+                "retry_after_seconds": 30,
+                "upgrade_available": True,
+                "upgrade_url": "https://fly.io/upgrade",
+            }
+        ).encode()
 
         err = parse_api_error(429, body)
         assert err is not None
@@ -217,12 +218,14 @@ class TestParseAPIError:
 
     def test_concurrent_limit_error(self):
         """Test parsing a concurrent limit error response."""
-        body = json.dumps({
-            "error": "concurrent_sprite_limit_exceeded",
-            "message": "Too many concurrent sprites",
-            "current_count": 5,
-            "limit": 5,
-        }).encode()
+        body = json.dumps(
+            {
+                "error": "concurrent_sprite_limit_exceeded",
+                "message": "Too many concurrent sprites",
+                "current_count": 5,
+                "limit": 5,
+            }
+        ).encode()
 
         err = parse_api_error(429, body)
         assert err is not None

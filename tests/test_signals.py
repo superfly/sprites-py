@@ -5,11 +5,11 @@ import types
 import httpx
 import pytest
 
+import sprites._signals as signals_module
 import sprites.checkpoint as checkpoint_mod
 import sprites.client as client_module
 import sprites.services as services_mod
 import sprites.session as session_mod
-import sprites._signals as signals_module
 from sprites import SpritesClient
 from sprites._signals import signal_headers
 from sprites.exceptions import APIError
@@ -118,7 +118,9 @@ def test_disabled_sends_only_plain_user_agent(monkeypatch):
     assert not _has_fly_headers(headers)
 
 
-@pytest.mark.parametrize("value", ["0", "off", "false", "no", "disabled", "OFF", " No "])
+@pytest.mark.parametrize(
+    "value", ["0", "off", "false", "no", "disabled", "OFF", " No "]
+)
 def test_disable_accepts_common_falsey_values(monkeypatch, value):
     monkeypatch.setenv("SPRITES_CLIENT_SIGNALS", value)
     assert list(signal_headers()) == ["User-Agent"]
@@ -142,6 +144,7 @@ def test_disabled_never_runs_detection(monkeypatch):
     # Opting out must bypass client_signals entirely, not just drop its output.
     monkeypatch.setenv("SPRITES_CLIENT_SIGNALS", "off")
     if signals_module.client_signals is not None:
+
         def _boom(*args, **kwargs):
             raise AssertionError("detection must not run when disabled")
 

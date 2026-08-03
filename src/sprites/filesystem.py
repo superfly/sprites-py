@@ -20,19 +20,20 @@ from __future__ import annotations
 
 import posixpath
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Union
+
 import httpx
 
-from .types import DirEntry, FileStat
 from ._utils import sprite_base_url
 from .exceptions import (
-    FilesystemError,
+    DirectoryNotEmptyError,
     FileNotFoundError_,
+    FilesystemError,
     IsADirectoryError_,
     NotADirectoryError_,
     PermissionError_,
-    DirectoryNotEmptyError,
 )
+from .types import FileStat
 
 if TYPE_CHECKING:
     from .sprite import Sprite
@@ -45,11 +46,7 @@ class SpritePath:
     Supports path operations using / operator and standard file methods.
     """
 
-    def __init__(
-        self,
-        filesystem: "SpriteFilesystem",
-        path: str
-    ):
+    def __init__(self, filesystem: "SpriteFilesystem", path: str):
         """
         Initialize a SpritePath.
 
@@ -184,7 +181,10 @@ class SpritePath:
             other_path = other._path
         else:
             other_path = str(other)
-        return self._path.startswith(other_path.rstrip("/") + "/") or self._path == other_path
+        return (
+            self._path.startswith(other_path.rstrip("/") + "/")
+            or self._path == other_path
+        )
 
     def joinpath(self, *others: Union[str, "SpritePath"]) -> "SpritePath":
         """Combine this path with one or more other paths."""
@@ -216,7 +216,7 @@ class SpritePath:
         if not self._path.startswith(other_path + "/") and self._path != other_path:
             raise ValueError(f"{self._path} is not relative to {other_path}")
 
-        rel = self._path[len(other_path):].lstrip("/")
+        rel = self._path[len(other_path) :].lstrip("/")
         if not rel:
             rel = "."
         return SpritePath(self._fs, rel)
@@ -356,7 +356,8 @@ class SpritePath:
         if not response.is_success:
             self._handle_error(response, "read")
 
-        return response.content
+        content: bytes = response.content
+        return content
 
     def read_text(self, encoding: str = "utf-8") -> str:
         """
@@ -371,10 +372,7 @@ class SpritePath:
         return self.read_bytes().decode(encoding)
 
     def write_bytes(
-        self,
-        data: bytes,
-        mode: int = 0o644,
-        mkdir_parents: bool = True
+        self, data: bytes, mode: int = 0o644, mkdir_parents: bool = True
     ) -> None:
         """
         Write bytes to the file.
@@ -413,7 +411,7 @@ class SpritePath:
         data: str,
         encoding: str = "utf-8",
         mode: int = 0o644,
-        mkdir_parents: bool = True
+        mkdir_parents: bool = True,
     ) -> None:
         """
         Write a string to the file.
@@ -455,7 +453,6 @@ class SpritePath:
 
         # Check if we're listing a directory (has entries) or a file (single entry)
         entries = data.get("entries", [])
-        path_in_response = data.get("path", self._path)
 
         # If the path matches and there are entries with different paths, it's a directory
         for entry in entries:
@@ -473,10 +470,7 @@ class SpritePath:
         return [p.name for p in self.iterdir()]
 
     def mkdir(
-        self,
-        mode: int = 0o755,
-        parents: bool = False,
-        exist_ok: bool = False
+        self, mode: int = 0o755, parents: bool = False, exist_ok: bool = False
     ) -> None:
         """
         Create a directory.
@@ -492,7 +486,9 @@ class SpritePath:
                 stat = self.stat()
                 if stat.is_dir:
                     return
-                raise FilesystemError("exists but is not a directory", "mkdir", self._path)
+                raise FilesystemError(
+                    "exists but is not a directory", "mkdir", self._path
+                )
             except FileNotFoundError_:
                 pass
 
@@ -634,9 +630,7 @@ class SpritePath:
         return self.rename(target)
 
     def copy_to(
-        self,
-        target: Union[str, "SpritePath"],
-        recursive: bool = True
+        self, target: Union[str, "SpritePath"], recursive: bool = True
     ) -> "SpritePath":
         """
         Copy this file or directory to the target.

@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Iterator
 
 import httpx
 
+from sprites._signals import signal_headers
+from sprites._utils import quote_path_segment, sprite_base_url
 from sprites.exceptions import APIError
 from sprites.types import Checkpoint, StreamMessage
-from sprites._utils import quote_path_segment, sprite_base_url
-from sprites._signals import signal_headers
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
@@ -155,7 +155,9 @@ def list_checkpoints(sprite: Sprite, history_filter: str = "") -> list[Checkpoin
     for item in data:
         checkpoint = Checkpoint(
             id=item.get("id", ""),
-            create_time=datetime.fromisoformat(item.get("create_time", "").replace("Z", "+00:00")),
+            create_time=datetime.fromisoformat(
+                item.get("create_time", "").replace("Z", "+00:00")
+            ),
             comment=item.get("comment"),
             history=item.get("history"),
         )
@@ -197,7 +199,9 @@ def get_checkpoint(sprite: Sprite, checkpoint_id: str) -> Checkpoint:
     data = response.json()
     return Checkpoint(
         id=data.get("id", ""),
-        create_time=datetime.fromisoformat(data.get("create_time", "").replace("Z", "+00:00")),
+        create_time=datetime.fromisoformat(
+            data.get("create_time", "").replace("Z", "+00:00")
+        ),
         comment=data.get("comment"),
         history=data.get("history"),
     )
@@ -228,7 +232,9 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
         headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
-            response = client.post(url, json=payload, headers={"Content-Type": "application/json"})
+            response = client.post(
+                url, json=payload, headers={"Content-Type": "application/json"}
+            )
         except httpx.RequestError as e:
             raise APIError(f"Failed to create checkpoint: {e}") from e
 
@@ -314,7 +320,7 @@ def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
         return _MessageIterator(messages)
 
 
-class _MessageIterator:
+class _MessageIterator(CheckpointStream, RestoreStream):
     """Simple iterator over pre-fetched messages."""
 
     def __init__(self, messages: list[StreamMessage]):

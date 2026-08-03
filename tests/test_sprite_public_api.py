@@ -10,7 +10,9 @@ from sprites.exceptions import ExitError, NotFoundError
 from sprites.exec import Cmd
 
 
-def test_destroy_and_delete_delegate_to_client_destroy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_destroy_and_delete_delegate_to_client_destroy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = SpritesClient("test-token", base_url="https://api.test")
     sprite = client.sprite("demo")
     calls = []
@@ -104,7 +106,9 @@ def test_list_and_get_checkpoints_parse_and_encode_paths(make_mock_client) -> No
     seen_paths = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        encoded_path = str(request.url).split("?", 1)[0].removeprefix("https://api.test")
+        encoded_path = (
+            str(request.url).split("?", 1)[0].removeprefix("https://api.test")
+        )
         seen_paths.append(encoded_path)
         if request.url.path == "/v1/sprites/demo/checkpoints":
             assert request.url.params["history"] == "ancestors"

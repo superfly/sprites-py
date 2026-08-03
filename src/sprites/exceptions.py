@@ -8,21 +8,25 @@ from typing import Any, Optional
 
 class SpriteError(Exception):
     """Base exception for all Sprite SDK errors."""
+
     pass
 
 
 class NetworkError(SpriteError):
     """Error during network communication."""
+
     pass
 
 
 class AuthenticationError(SpriteError):
     """Authentication failed."""
+
     pass
 
 
 class NotFoundError(SpriteError):
     """Resource not found."""
+
     pass
 
 
@@ -132,7 +136,9 @@ def parse_api_error(
         except ValueError:
             pass
 
-    if rr := headers.get("x-ratelimit-remaining") or headers.get("X-RateLimit-Remaining"):
+    if rr := headers.get("x-ratelimit-remaining") or headers.get(
+        "X-RateLimit-Remaining"
+    ):
         try:
             rate_limit_remaining = int(rr)
         except ValueError:
@@ -197,11 +203,7 @@ class ExecError(SpriteError):
     """Command execution failed with non-zero exit code."""
 
     def __init__(
-        self,
-        message: str,
-        exit_code: int,
-        stdout: bytes = b"",
-        stderr: bytes = b""
+        self, message: str, exit_code: int, stdout: bytes = b"", stderr: bytes = b""
     ):
         super().__init__(message)
         self._exit_code = exit_code
@@ -219,6 +221,7 @@ ExitError = ExecError
 
 class TimeoutError(SpriteError):
     """Command execution timed out."""
+
     pass
 
 
@@ -226,11 +229,7 @@ class FilesystemError(SpriteError):
     """Error during filesystem operation."""
 
     def __init__(
-        self,
-        message: str,
-        operation: str,
-        path: str,
-        code: Optional[str] = None
+        self, message: str, operation: str, path: str, code: Optional[str] = None
     ):
         super().__init__(message)
         self.operation = operation

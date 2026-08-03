@@ -100,7 +100,9 @@ def test_list_all_sprites_paginates_and_applies_prefix(make_mock_client) -> None
     assert len(seen_params) == 2
 
 
-def test_delete_sprite_alias_delegates_to_destroy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_delete_sprite_alias_delegates_to_destroy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = SpritesClient("test-token", base_url="https://api.test")
     calls = []
 
@@ -133,7 +135,9 @@ def test_handle_response_maps_api_errors(
         client._handle_response(response, "test operation")
 
 
-def test_create_token_posts_fly_auth_and_invite_code(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_token_posts_fly_auth_and_invite_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     real_client = httpx.Client
     captured = {}
 
@@ -182,4 +186,6 @@ def test_update_url_settings_sends_private_access(make_mock_client) -> None:
 
     client = make_mock_client(handler)
 
-    client.update_url_settings("demo", URLSettings(auth="sprite", private_access="admins"))
+    client.update_url_settings(
+        "demo", URLSettings(auth="sprite", private_access="admins")
+    )

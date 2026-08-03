@@ -1,6 +1,5 @@
 """Tests for the control connection module."""
 
-import pytest
 from sprites import SpritesClient
 from sprites._utils import quote_path_segment, websocket_base_url
 
@@ -87,4 +86,6 @@ class TestControlURLBuilding:
             f"/v1/sprites/{quote_path_segment(sprite.name)}/control"
         )
 
-        assert actual_url == "wss://api.sprites.dev/v1/sprites/my%20sprite%2Fname/control"
+        assert (
+            actual_url == "wss://api.sprites.dev/v1/sprites/my%20sprite%2Fname/control"
+        )

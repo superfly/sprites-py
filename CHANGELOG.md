@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- Reduced command completion latency by closing exec WebSockets immediately after the command finishes.
+- Updated `client-signals` to 0.4.4, including Grok agent detection.
+
 ## 0.4.0
 
 - Added `env` and `dir` support when creating services and parsing service responses.

@@ -1,7 +1,44 @@
 """Tests for the control connection module."""
 
+import pytest
+
 from sprites import SpritesClient
 from sprites._utils import quote_path_segment, websocket_base_url
+from sprites.control import OpConn, StreamID
+
+
+class StubControlConnection:
+    """Minimal parent connection for testing operation state."""
+
+
+@pytest.mark.asyncio
+async def test_op_conn_distinguishes_exit_from_connection_close() -> None:
+    op = OpConn(StubControlConnection())  # type: ignore[arg-type]
+
+    op.close()
+
+    assert op.received_exit is False
+    assert op.get_exit_code() == -1
+
+
+@pytest.mark.asyncio
+async def test_op_conn_records_received_exit() -> None:
+    op = OpConn(StubControlConnection())  # type: ignore[arg-type]
+
+    op.handle_data(bytes([StreamID.EXIT, 4]))
+
+    assert op.received_exit is True
+    assert op.get_exit_code() == 4
+
+
+@pytest.mark.asyncio
+async def test_op_conn_completion_status_counts_as_received_exit() -> None:
+    op = OpConn(StubControlConnection())  # type: ignore[arg-type]
+
+    op.complete(0)
+
+    assert op.received_exit is True
+    assert op.get_exit_code() == 0
 
 
 class TestControlModeClientOptions:

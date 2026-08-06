@@ -51,6 +51,7 @@ class OpConn:
         self.tty = tty
         self.closed = False
         self.exit_code = -1
+        self.received_exit = False
         self._done_event = asyncio.Event()
 
         # Output buffers
@@ -137,6 +138,7 @@ class OpConn:
                 # Store exit code but DON'T signal done yet
                 # Wait for op.complete message to ensure proper sequencing
                 self.exit_code = payload[0] if payload else 0
+                self.received_exit = True
 
     def handle_text(self, data: str) -> None:
         """Handle text message (session_info, notifications, etc.).
@@ -162,6 +164,7 @@ class OpConn:
         self.closed = True
         if exit_code is not None:
             self.exit_code = exit_code
+            self.received_exit = True
         self._done_event.set()
 
     def close(self) -> None:

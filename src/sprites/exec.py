@@ -100,6 +100,7 @@ class Cmd:
 
         Raises:
             ExitError: If the command exits with non-zero status.
+            NetworkError: If the connection closes before an exit status arrives.
             TimeoutError: If the command times out.
         """
         code = self._run_sync()
@@ -116,6 +117,7 @@ class Cmd:
 
         Raises:
             ExitError: If the command exits with non-zero status.
+            NetworkError: If the connection closes before an exit status arrives.
             TimeoutError: If the command times out.
             RuntimeError: If stdout is already set.
         """
@@ -140,6 +142,7 @@ class Cmd:
 
         Raises:
             ExitError: If the command exits with non-zero status.
+            NetworkError: If the connection closes before an exit status arrives.
             TimeoutError: If the command times out.
             RuntimeError: If stdout or stderr is already set.
         """
@@ -225,6 +228,7 @@ def run(
 
     Raises:
         ExitError: If check=True and command returns non-zero.
+        NetworkError: If the connection closes before an exit status arrives.
         TimeoutError: If command times out.
     """
     cmd = Cmd(

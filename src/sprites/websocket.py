@@ -13,7 +13,7 @@ from websockets.exceptions import ConnectionClosed, InvalidStatus, InvalidStatus
 
 from sprites._signals import signal_headers
 from sprites._utils import quote_path_segment, websocket_base_url
-from sprites.exceptions import parse_api_error
+from sprites.exceptions import NetworkError, SpriteError, parse_api_error
 
 if TYPE_CHECKING:
     from sprites.exec import Cmd
@@ -46,6 +46,7 @@ class WSCommand:
         self.cmd = cmd
         self.ws: websockets.WebSocketClientProtocol | None = None
         self.exit_code = -1
+        self.received_exit = False
         self.started = False
         self.done = False
         self._is_attach = cmd.session_id is not None
@@ -53,6 +54,7 @@ class WSCommand:
         self._stdout_buffer: bytearray = bytearray()
         self._stderr_buffer: bytearray = bytearray()
         self._io_task: asyncio.Task[None] | None = None
+        self._io_error: NetworkError | None = None
         self._session_info_event = asyncio.Event()
 
     def _build_websocket_url(self) -> str:
@@ -181,30 +183,27 @@ class WSCommand:
                     break
 
         except ConnectionClosed as e:
-            # Check if this is a normal closure (code 1000)
-            # The websockets library can sometimes raise ConnectionClosed even for normal closures
-            if e.code == 1000:
-                # Normal closure - treat as success if no exit code received
-                if self.exit_code < 0:
-                    self.exit_code = 0
-            else:
-                # Non-normal closure - treat as error
-                error_msg = (
-                    f"WebSocket ConnectionClosed: code={e.code}, reason={e.reason}\n"
-                )
-                self._stderr_buffer.extend(error_msg.encode())
-                if self.exit_code < 0:
-                    self.exit_code = 1
+            if not self.received_exit:
+                close = getattr(e, "rcvd", None)
+                if close is not None:
+                    code = close.code
+                    reason = close.reason
+                else:
+                    # Compatibility with websockets versions before ``rcvd``.
+                    code = getattr(e, "code", None)
+                    reason = getattr(e, "reason", None)
+                self._io_error = self._closed_before_exit_error(code, reason)
         except Exception as e:
-            # Any other exception - treat as error
-            error_msg = f"WebSocket I/O error: {type(e).__name__}: {e}\n"
-            self._stderr_buffer.extend(error_msg.encode())
-            if self.exit_code < 0:
-                self.exit_code = 1
+            if not self.received_exit:
+                self._io_error = NetworkError(
+                    f"WebSocket I/O failed before receiving command exit status: "
+                    f"{type(e).__name__}: {e}"
+                )
         else:
-            # Loop completed normally (connection closed with code 1000)
-            if self.exit_code < 0:
-                self.exit_code = 0
+            if not self.received_exit:
+                code = getattr(self.ws, "close_code", None)
+                reason = getattr(self.ws, "close_reason", None)
+                self._io_error = self._closed_before_exit_error(code, reason)
         finally:
             self.done = True
             # Clean up stdin task
@@ -254,6 +253,7 @@ class WSCommand:
                     self.cmd.stderr.write(payload)
             elif stream_id == StreamID.EXIT:
                 self.exit_code = payload[0] if payload else 0
+                self.received_exit = True
                 # Mark as done - the connection will close and loop will exit
                 self.done = True
 
@@ -264,6 +264,10 @@ class WSCommand:
             if info.get("type") == "session_info":
                 self.cmd.tty = info.get("tty", False)
                 self._session_info_event.set()
+            elif info.get("type") == "exit":
+                self.exit_code = info.get("exit_code", 0)
+                self.received_exit = True
+                self.done = True
         except json.JSONDecodeError:
             pass
 
@@ -319,17 +323,30 @@ class WSCommand:
             try:
                 await self._io_task
             except Exception as e:
-                # Task failed unexpectedly
-                error_msg = f"WebSocket task failed: {type(e).__name__}: {e}\n"
-                self._stderr_buffer.extend(error_msg.encode())
-                if self.exit_code < 0:
-                    self.exit_code = 1
-        # Safeguard: exit_code should never be -1 at this point
-        if self.exit_code < 0:
-            error_msg = "WebSocket error: exit code not set\n"
-            self._stderr_buffer.extend(error_msg.encode())
-            self.exit_code = 1
+                raise NetworkError(
+                    f"WebSocket task failed before receiving command exit status: "
+                    f"{type(e).__name__}: {e}"
+                ) from e
+        if not self.received_exit:
+            if self._io_error is not None:
+                raise self._io_error
+            raise NetworkError(
+                "WebSocket finished before receiving command exit status"
+            )
         return self.exit_code
+
+    @staticmethod
+    def _closed_before_exit_error(code: int | None, reason: str | None) -> NetworkError:
+        """Build an error for a close without the protocol's EXIT message."""
+        details = []
+        if code is not None:
+            details.append(f"code={code}")
+        if reason is not None:
+            details.append(f"reason={reason!r}")
+        suffix = f" ({', '.join(details)})" if details else ""
+        return NetworkError(
+            "WebSocket closed before receiving command exit status" + suffix
+        )
 
     async def close(self) -> None:
         """Close the WebSocket connection."""
@@ -359,32 +376,7 @@ async def run_ws_command(cmd: Cmd) -> int:
     if cmd.session_id is None and cmd.sprite.use_control_mode():
         return await run_ws_command_via_control(cmd)
 
-    ws_cmd = WSCommand(cmd)
-    ws_cmd.text_message_handler = cmd._text_message_handler
-
-    try:
-        await ws_cmd.start()
-        exit_code = await ws_cmd.wait()
-    except Exception as e:
-        # If connection or I/O fails, store error message in stderr buffer
-        # and return error exit code
-        error_msg = f"WebSocket error: {type(e).__name__}: {e}\n"
-        ws_cmd._stderr_buffer.extend(error_msg.encode())
-        exit_code = 1
-    finally:
-        # Ensure connection is closed
-        await ws_cmd.close()
-
-    # Copy buffered output if cmd is capturing
-    if cmd._capture_stdout:
-        cmd._stdout_data = ws_cmd.get_stdout()
-    if cmd._capture_stderr:
-        cmd._stderr_data = ws_cmd.get_stderr()
-    # Always copy stderr on error for debugging, even if not explicitly capturing
-    elif exit_code != 0:
-        cmd._stderr_data = ws_cmd.get_stderr()
-
-    return exit_code
+    return await _run_ws_command_direct(cmd)
 
 
 async def _run_ws_command_direct(cmd: Cmd) -> int:
@@ -398,26 +390,28 @@ async def _run_ws_command_direct(cmd: Cmd) -> int:
     """
     ws_cmd = WSCommand(cmd)
     ws_cmd.text_message_handler = cmd._text_message_handler
+    exit_code: int | None = None
 
     try:
         await ws_cmd.start()
         exit_code = await ws_cmd.wait()
+        return exit_code
+    except SpriteError:
+        raise
     except Exception as e:
-        error_msg = f"WebSocket error: {type(e).__name__}: {e}\n"
-        ws_cmd._stderr_buffer.extend(error_msg.encode())
-        exit_code = 1
+        raise NetworkError(f"WebSocket command failed: {type(e).__name__}: {e}") from e
     finally:
-        await ws_cmd.close()
-
-    # Copy buffered output if cmd is capturing
-    if cmd._capture_stdout:
-        cmd._stdout_data = ws_cmd.get_stdout()
-    if cmd._capture_stderr:
-        cmd._stderr_data = ws_cmd.get_stderr()
-    elif exit_code != 0:
-        cmd._stderr_data = ws_cmd.get_stderr()
-
-    return exit_code
+        try:
+            await ws_cmd.close()
+        except Exception:
+            # The command result is determined by the EXIT frame. A close
+            # handshake failure after that must not replace the result.
+            pass
+        finally:
+            if cmd._capture_stdout:
+                cmd._stdout_data = ws_cmd.get_stdout()
+            if cmd._capture_stderr or (exit_code is not None and exit_code != 0):
+                cmd._stderr_data = ws_cmd.get_stderr()
 
 
 async def run_ws_command_via_control(cmd: Cmd) -> int:
@@ -480,11 +474,18 @@ async def run_ws_command_via_control(cmd: Cmd) -> int:
             await op.send_eof()
 
         # Wait for operation to complete
-        exit_code = await op.wait()
+        try:
+            exit_code = await op.wait()
+        finally:
+            # Preserve any output received before a transport failure.
+            cmd._stdout_data = op.get_stdout()
+            cmd._stderr_data = op.get_stderr()
 
-        # Copy output
-        cmd._stdout_data = op.get_stdout()
-        cmd._stderr_data = op.get_stderr()
+        if not op.received_exit:
+            detail = f": {cc.close_error}" if cc.close_error is not None else ""
+            raise NetworkError(
+                "Control WebSocket closed before receiving command exit status" + detail
+            )
 
         return exit_code
 
@@ -499,11 +500,12 @@ async def run_ws_command_via_control(cmd: Cmd) -> int:
         # Retry with direct WebSocket
         return await _run_ws_command_direct(cmd)
 
+    except SpriteError:
+        raise
     except Exception as e:
-        # If control mode fails for other reasons, store error message in stderr buffer
-        error_msg = f"Control mode error: {type(e).__name__}: {e}\n"
-        cmd._stderr_data = error_msg.encode()
-        return 1
+        raise NetworkError(
+            f"Control WebSocket command failed: {type(e).__name__}: {e}"
+        ) from e
     finally:
         # Always release the connection back to the pool
         if cc is not None:

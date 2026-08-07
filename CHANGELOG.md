@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Report command WebSocket closures without an exit status as `NetworkError`
+  instead of treating transport failures as successful exits or `ExecError: 1`.
+
 ## 0.5.0
 
 - Reduced command completion latency by closing exec WebSockets immediately after the command finishes.

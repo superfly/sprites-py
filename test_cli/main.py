@@ -149,6 +149,9 @@ def parse_args(argv: List[str]) -> tuple[Dict[str, Any], List[str]]:
         elif arg == "-env":
             i += 1
             options["env"] = argv[i]
+        elif arg == "-log-target":
+            i += 1
+            options["log_target"] = argv[i]
         elif arg == "-json":
             options["json"] = True
         elif arg in ("-help", "--help"):

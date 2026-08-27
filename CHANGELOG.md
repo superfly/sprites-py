@@ -4,6 +4,8 @@
 
 - Report command WebSocket closures without an exit status as `NetworkError`
   instead of treating transport failures as successful exits or `ExecError: 1`.
+- Moved the separately published OpenAI Agents sandbox integration to
+  [superfly/sprites-openai-agents](https://github.com/superfly/sprites-openai-agents).
 
 ## 0.5.0
 

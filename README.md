@@ -194,7 +194,7 @@ no `Fly-Client-*` headers — the SDK is otherwise unaffected.
 ## Integrations
 
 Framework-specific adapters are published separately so this SDK can remain
-generic. The [OpenAI Agents integration](integrations/openai-agents/README.md)
+generic. The [OpenAI Agents integration](https://github.com/superfly/sprites-openai-agents)
 provides a Sprites-backed implementation of the Agents SDK sandbox interface.
 
 ## Requirements

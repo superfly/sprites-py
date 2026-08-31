@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 
 from sprites._signals import signal_headers
 from sprites._utils import quote_path_segment, websocket_base_url
@@ -377,7 +378,7 @@ class ControlConnection:
         Args:
             data: Data to send
         """
-        if self.ws is None or self.ws.state != websockets.protocol.State.OPEN:
+        if self.ws is None or self.ws.state != State.OPEN:
             raise RuntimeError("WebSocket not connected")
         await self.ws.send(data)
 
@@ -387,7 +388,7 @@ class ControlConnection:
         Args:
             data: Text to send
         """
-        if self.ws is None or self.ws.state != websockets.protocol.State.OPEN:
+        if self.ws is None or self.ws.state != State.OPEN:
             raise RuntimeError("WebSocket not connected")
         await self.ws.send(data)
 

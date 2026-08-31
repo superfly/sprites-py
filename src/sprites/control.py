@@ -7,7 +7,7 @@ import atexit
 import json
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
-import websockets
+from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
 from sprites._signals import signal_headers
@@ -212,7 +212,7 @@ class ControlConnection:
             sprite: The sprite this connection is for
         """
         self.sprite = sprite
-        self.ws: websockets.WebSocketClientProtocol | None = None
+        self.ws: ClientConnection | None = None
         self.op_active = False
         self.op_conn: OpConn | None = None
         self.closed = False
@@ -232,7 +232,7 @@ class ControlConnection:
             **signal_headers(),
         }
 
-        self.ws = await websockets.connect(
+        self.ws = await connect(
             url,
             additional_headers=headers,
             ping_interval=WS_PING_INTERVAL,

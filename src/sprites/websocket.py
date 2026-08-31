@@ -8,8 +8,8 @@ from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import urlencode
 
-import websockets
-from websockets.exceptions import ConnectionClosed, InvalidStatus, InvalidStatusCode
+from websockets.asyncio.client import ClientConnection, connect
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from sprites._signals import signal_headers
 from sprites._utils import quote_path_segment, websocket_base_url
@@ -44,7 +44,7 @@ class WSCommand:
             cmd: The Cmd instance to execute.
         """
         self.cmd = cmd
-        self.ws: websockets.WebSocketClientProtocol | None = None
+        self.ws: ClientConnection | None = None
         self.exit_code = -1
         self.received_exit = False
         self.started = False
@@ -112,7 +112,7 @@ class WSCommand:
         }
 
         try:
-            self.ws = await websockets.connect(
+            self.ws = await connect(
                 url,
                 additional_headers=headers,
                 ping_interval=WS_PING_INTERVAL,
@@ -126,17 +126,11 @@ class WSCommand:
                 # from ~5.3s to ~140ms (a ~38x speedup). See #24.
                 close_timeout=0,
             )
-        except InvalidStatusCode as e:
+        except InvalidStatus as e:
             # Try to parse as a structured API error
-            body = b""
-            response_headers: dict[str, str] = {}
-            if hasattr(e, "response") and e.response is not None:
-                # websockets >= 12.0 provides response object
-                if hasattr(e.response, "body"):
-                    body = e.response.body or b""
-                if hasattr(e.response, "headers"):
-                    response_headers = dict(e.response.headers)
-            api_err = parse_api_error(e.status_code, body, response_headers)
+            body = e.response.body or b""
+            response_headers = dict(e.response.headers)
+            api_err = parse_api_error(e.response.status_code, body, response_headers)
             if api_err is not None:
                 raise api_err from None
             # Fall back to original exception
@@ -489,7 +483,7 @@ async def run_ws_command_via_control(cmd: Cmd) -> int:
 
         return exit_code
 
-    except (InvalidStatusCode, InvalidStatus):
+    except InvalidStatus:
         # Control endpoint returned error (likely 404) - fall back to direct mode
         # Release connection if we got one
         if cc is not None:

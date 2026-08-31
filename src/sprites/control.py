@@ -569,6 +569,16 @@ class ControlPool:
 
 # Module-level cache for control pools (one pool per sprite)
 _control_pools: Dict[str, ControlPool] = {}
+_cleanup_registered = False
+
+
+def _register_cleanup_on_exit() -> None:
+    """Register control cleanup after the persistent loop cleanup handler."""
+    global _cleanup_registered
+
+    if not _cleanup_registered:
+        atexit.register(_cleanup_on_exit)
+        _cleanup_registered = True
 
 
 async def get_control_connection(sprite: Sprite) -> ControlConnection:
@@ -585,6 +595,7 @@ async def get_control_connection(sprite: Sprite) -> ControlConnection:
     # Get or create pool
     if key not in _control_pools:
         _control_pools[key] = ControlPool(sprite)
+        _register_cleanup_on_exit()
 
     pool = _control_pools[key]
     return await pool.acquire()
@@ -651,9 +662,12 @@ def _cleanup_on_exit() -> None:
         return
 
     try:
-        from sprites.loop import get_loop, stop_loop
+        from sprites.loop import get_existing_loop, stop_loop
 
-        loop = get_loop()
+        loop = get_existing_loop()
+        if loop is None:
+            return
+
         future = asyncio.run_coroutine_threadsafe(_close_all_pools(), loop)
         future.result(timeout=5)
 
@@ -661,7 +675,3 @@ def _cleanup_on_exit() -> None:
         stop_loop()
     except Exception:
         pass  # Ignore errors during cleanup
-
-
-# Register cleanup handler
-atexit.register(_cleanup_on_exit)

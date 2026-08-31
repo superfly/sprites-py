@@ -31,6 +31,7 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
     monkeypatch,
 ) -> None:
     captured = []
+    client_kwargs = []
     responses = [
         httpx.Response(
             200, text='{"type":"progress","data":"saving"}\n{"type":"done"}\n'
@@ -44,6 +45,7 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
+            client_kwargs.append(kwargs)
 
         def __enter__(self):
             return self
@@ -55,16 +57,20 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
             captured.append((url, kwargs))
             return responses.pop(0)
 
-    monkeypatch.setattr(checkpoint_module.httpx, "Client", FakeClient)
     sprite = SpritesClient("test-token", base_url="https://api.test").sprite(
         "demo/name"
     )
+    monkeypatch.setattr(checkpoint_module.httpx, "Client", FakeClient)
 
     create_messages = list(sprite.create_checkpoint("before upgrade"))
     restore_messages = list(sprite.restore_checkpoint("checkpoint one"))
 
     assert [message.type for message in create_messages] == ["progress", "done"]
     assert [message.type for message in restore_messages] == ["progress", "done"]
+    assert [kwargs["timeout"] for kwargs in client_kwargs] == [
+        checkpoint_module.CHECKPOINT_TIMEOUT,
+        checkpoint_module.CHECKPOINT_TIMEOUT,
+    ]
     assert captured[0] == (
         "https://api.test/v1/sprites/demo%2Fname/checkpoint",
         {
@@ -76,6 +82,31 @@ def test_create_and_restore_checkpoint_post_and_parse_streams(
         "https://api.test/v1/sprites/demo%2Fname/checkpoints/checkpoint%20one/restore",
         {},
     )
+
+
+def test_checkpoint_timeouts_can_be_configured(monkeypatch) -> None:
+    timeouts = []
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            timeouts.append(kwargs["timeout"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, url, **kwargs):
+            return httpx.Response(200, text='{"type":"done"}\n')
+
+    sprite = SpritesClient("test-token", base_url="https://api.test").sprite("demo")
+    monkeypatch.setattr(checkpoint_module.httpx, "Client", FakeClient)
+
+    list(sprite.create_checkpoint(timeout=12.5))
+    list(sprite.restore_checkpoint("checkpoint-id", timeout=45.0))
+
+    assert timeouts == [12.5, 45.0]
 
 
 def test_service_stream_process_all() -> None:

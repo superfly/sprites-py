@@ -44,6 +44,18 @@ def get_loop() -> asyncio.AbstractEventLoop:
     return _loop
 
 
+def get_existing_loop() -> asyncio.AbstractEventLoop | None:
+    """Return the running persistent event loop without creating one.
+
+    Returns:
+        The persistent event loop if it exists and is running, otherwise None.
+    """
+    with _lock:
+        if _loop is None or not _loop.is_running():
+            return None
+        return _loop
+
+
 def run_sync(coro: Coroutine[Any, Any, T], timeout: float | None = None) -> T:
     """Run a coroutine synchronously using the persistent event loop.
 

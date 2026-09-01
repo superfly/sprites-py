@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added native asyncio support through `AsyncSpritesClient` and matching async
+  sprite, command, and filesystem handles.
+- Fixed synchronous `Cmd.exit_code` to report the completed command's exit
+  status instead of remaining `-1`.
+
 ## 0.6.0
 
 - Added configurable five-minute timeouts for checkpoint creation and restore

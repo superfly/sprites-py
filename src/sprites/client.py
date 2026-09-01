@@ -32,6 +32,20 @@ if TYPE_CHECKING:
     from .sprite import Sprite
 
 
+def _handle_response(response: httpx.Response, operation: str) -> None:
+    """Raise the SDK exception represented by an HTTP response."""
+    if response.status_code == 401:
+        raise AuthenticationError(f"Authentication failed for {operation}")
+    if response.status_code == 404:
+        raise NotFoundError(f"Resource not found for {operation}")
+    if not response.is_success:
+        try:
+            body = response.text
+        except Exception:
+            body = ""
+        raise SpriteError(f"Failed {operation} (status {response.status_code}): {body}")
+
+
 class SpritesClient:
     """Main client for interacting with the Sprites API."""
 
@@ -85,18 +99,7 @@ class SpritesClient:
 
     def _handle_response(self, response: httpx.Response, operation: str) -> None:
         """Handle HTTP response errors."""
-        if response.status_code == 401:
-            raise AuthenticationError(f"Authentication failed for {operation}")
-        if response.status_code == 404:
-            raise NotFoundError(f"Resource not found for {operation}")
-        if not response.is_success:
-            try:
-                body = response.text
-            except Exception:
-                body = ""
-            raise SpriteError(
-                f"Failed {operation} (status {response.status_code}): {body}"
-            )
+        _handle_response(response, operation)
 
     def _sprite_url(self, name: str) -> str:
         return sprite_base_url(self.base_url, name)

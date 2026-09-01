@@ -34,6 +34,35 @@ sprite.destroy()
 
 ## API Overview
 
+### Async API
+
+Async applications can use the matching native asyncio client. Its network
+operations use `httpx.AsyncClient`, and command execution runs directly on the
+caller's event loop.
+
+```python
+from sprites import AsyncSpritesClient
+
+async with AsyncSpritesClient(token="your-token") as client:
+    sprite = await client.create_sprite("my-sprite")
+
+    output = await sprite.command("echo", "hello").output()
+    result = await sprite.run("uname", "-a", capture_output=True)
+
+    config = sprite.filesystem("/app") / "config.json"
+    await config.write_text('{"debug": true}')
+    print(await config.read_text())
+
+    async for path in (sprite.filesystem("/app") / ".").iterdir():
+        print(path.name)
+
+    await sprite.destroy()
+```
+
+`AsyncSpritesClient` deliberately returns distinct `AsyncSprite`, `AsyncCmd`,
+and `AsyncSpritePath` objects. This keeps every I/O method predictably
+awaitable while preserving the existing synchronous API unchanged.
+
 ### SpritesClient
 
 ```python

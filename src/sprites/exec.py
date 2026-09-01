@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, BinaryIO, Callable
+from typing import BinaryIO, Callable
 
+from sprites._interfaces import SpriteLike
 from sprites.exceptions import ExitError, TimeoutError
-
-if TYPE_CHECKING:
-    from sprites.sprite import Sprite
 
 
 @dataclass
@@ -22,15 +20,12 @@ class CompletedProcess:
     stderr: bytes | None = None
 
 
-class Cmd:
-    """Represents a command to be run on a sprite.
-
-    This class mirrors Go's exec.Cmd API for compatibility with the SDK patterns.
-    """
+class _CmdBase:
+    """State and async transport shared by sync and async commands."""
 
     def __init__(
         self,
-        sprite: Sprite,
+        sprite: SpriteLike,
         args: list[str],
         *,
         env: dict[str, str] | None = None,
@@ -95,88 +90,6 @@ class Cmd:
         self.tty_rows = rows
         self.tty_cols = cols
 
-    def run(self) -> None:
-        """Start command and wait for completion (like exec.Cmd.Run).
-
-        Raises:
-            ExitError: If the command exits with non-zero status.
-            NetworkError: If the connection closes before an exit status arrives.
-            TimeoutError: If the command times out.
-        """
-        code = self._run_sync()
-        if code != 0:
-            raise ExitError(
-                f"exit status {code}", code, self._stdout_data, self._stderr_data
-            )
-
-    def output(self) -> bytes:
-        """Run command and return stdout (like exec.Cmd.Output).
-
-        Returns:
-            The stdout output from the command.
-
-        Raises:
-            ExitError: If the command exits with non-zero status.
-            NetworkError: If the connection closes before an exit status arrives.
-            TimeoutError: If the command times out.
-            RuntimeError: If stdout is already set.
-        """
-        if self.stdout is not None:
-            raise RuntimeError("stdout already set")
-
-        self._capture_stdout = True
-        code = self._run_sync()
-
-        if code != 0:
-            raise ExitError(
-                f"exit status {code}", code, self._stdout_data, self._stderr_data
-            )
-
-        return self._stdout_data
-
-    def combined_output(self) -> bytes:
-        """Run command and return combined stdout/stderr.
-
-        Returns:
-            The combined stdout and stderr output.
-
-        Raises:
-            ExitError: If the command exits with non-zero status.
-            NetworkError: If the connection closes before an exit status arrives.
-            TimeoutError: If the command times out.
-            RuntimeError: If stdout or stderr is already set.
-        """
-        if self.stdout is not None:
-            raise RuntimeError("stdout already set")
-        if self.stderr is not None:
-            raise RuntimeError("stderr already set")
-
-        self._capture_stdout = True
-        self._capture_stderr = True
-        code = self._run_sync()
-
-        # For combined output, merge stdout and stderr
-        combined = self._stdout_data + self._stderr_data
-
-        if code != 0:
-            raise ExitError(f"exit status {code}", code, combined, b"")
-
-        return combined
-
-    def _run_sync(self) -> int:
-        """Run the command synchronously and return exit code."""
-        if self._started:
-            raise RuntimeError("command already started")
-        self._started = True
-
-        try:
-            # Use the persistent event loop for connection reuse
-            from sprites.loop import run_sync
-
-            return run_sync(self._run_async(), timeout=self.timeout)
-        finally:
-            self._finished = True
-
     async def _run_async(self) -> int:
         """Run the command asynchronously."""
         from sprites.websocket import run_ws_command
@@ -197,8 +110,85 @@ class Cmd:
         return self._exit_code
 
 
+class Cmd(_CmdBase):
+    """Represents a synchronously executed command on a sprite.
+
+    This class mirrors Go's ``exec.Cmd`` API for compatibility with the other
+    Sprites SDKs.
+    """
+
+    def run(self) -> None:
+        """Start the command and wait for completion.
+
+        Raises:
+            ExitError: If the command exits with a non-zero status.
+            NetworkError: If the connection closes before an exit status arrives.
+            TimeoutError: If the command times out.
+        """
+        code = self._run_sync()
+        if code != 0:
+            raise ExitError(
+                f"exit status {code}", code, self._stdout_data, self._stderr_data
+            )
+
+    def output(self) -> bytes:
+        """Run the command and return stdout.
+
+        Returns:
+            Bytes written to stdout.
+
+        Raises:
+            ExitError: If the command exits with a non-zero status.
+            RuntimeError: If stdout is already configured.
+        """
+        if self.stdout is not None:
+            raise RuntimeError("stdout already set")
+        self._capture_stdout = True
+        code = self._run_sync()
+        if code != 0:
+            raise ExitError(
+                f"exit status {code}", code, self._stdout_data, self._stderr_data
+            )
+        return self._stdout_data
+
+    def combined_output(self) -> bytes:
+        """Run the command and return stdout followed by stderr.
+
+        Returns:
+            Combined stdout and stderr bytes.
+
+        Raises:
+            ExitError: If the command exits with a non-zero status.
+            RuntimeError: If stdout or stderr is already configured.
+        """
+        if self.stdout is not None:
+            raise RuntimeError("stdout already set")
+        if self.stderr is not None:
+            raise RuntimeError("stderr already set")
+        self._capture_stdout = True
+        self._capture_stderr = True
+        code = self._run_sync()
+        combined = self._stdout_data + self._stderr_data
+        if code != 0:
+            raise ExitError(f"exit status {code}", code, combined, b"")
+        return combined
+
+    def _run_sync(self) -> int:
+        """Run the command on the SDK's persistent event loop."""
+        if self._started:
+            raise RuntimeError("command already started")
+        self._started = True
+        try:
+            from sprites.loop import run_sync
+
+            self._exit_code = run_sync(self._run_async(), timeout=self.timeout)
+            return self._exit_code
+        finally:
+            self._finished = True
+
+
 def run(
-    sprite: Sprite,
+    sprite: SpriteLike,
     *args: str,
     capture_output: bool = False,
     timeout: float | None = None,

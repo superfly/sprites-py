@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Iterator, Union
 
 import httpx
 
@@ -15,6 +15,9 @@ from sprites.types import Checkpoint, StreamMessage
 
 if TYPE_CHECKING:
     from sprites.sprite import Sprite
+
+
+CHECKPOINT_TIMEOUT = 300.0
 
 
 class CheckpointStream:
@@ -207,12 +210,19 @@ def get_checkpoint(sprite: Sprite, checkpoint_id: str) -> Checkpoint:
     )
 
 
-def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
+def create_checkpoint(
+    sprite: Sprite,
+    comment: str = "",
+    *,
+    timeout: Union[float, httpx.Timeout] = CHECKPOINT_TIMEOUT,
+) -> CheckpointStream:
     """Create a new checkpoint.
 
     Args:
         sprite: The sprite to checkpoint.
         comment: Optional comment for the checkpoint.
+        timeout: HTTP timeout in seconds, or an httpx.Timeout configuration.
+            Defaults to five minutes.
 
     Returns:
         A stream of checkpoint creation messages.
@@ -226,9 +236,9 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
     if comment:
         payload["comment"] = comment
 
-    # Use a separate client for streaming with no timeout
+    # Use a separate client because the response body contains checkpoint events.
     with httpx.Client(
-        timeout=None,
+        timeout=timeout,
         headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:
@@ -265,12 +275,19 @@ def create_checkpoint(sprite: Sprite, comment: str = "") -> CheckpointStream:
         return _MessageIterator(messages)
 
 
-def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
+def restore_checkpoint(
+    sprite: Sprite,
+    checkpoint_id: str,
+    *,
+    timeout: Union[float, httpx.Timeout] = CHECKPOINT_TIMEOUT,
+) -> RestoreStream:
     """Restore a checkpoint.
 
     Args:
         sprite: The sprite to restore.
         checkpoint_id: The ID of the checkpoint to restore.
+        timeout: HTTP timeout in seconds, or an httpx.Timeout configuration.
+            Defaults to five minutes.
 
     Returns:
         A stream of restore messages.
@@ -283,9 +300,9 @@ def restore_checkpoint(sprite: Sprite, checkpoint_id: str) -> RestoreStream:
         f"/checkpoints/{quote_path_segment(checkpoint_id)}/restore"
     )
 
-    # Use a separate client for streaming with no timeout
+    # Use a separate client because the response body contains restore events.
     with httpx.Client(
-        timeout=None,
+        timeout=timeout,
         headers={**signal_headers(), "Authorization": f"Bearer {sprite.client.token}"},
     ) as client:
         try:

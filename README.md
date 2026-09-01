@@ -132,13 +132,13 @@ for path in (fs / ".").iterdir():
 # List checkpoints
 checkpoints = sprite.list_checkpoints()
 
-# Create a checkpoint
+# Create a checkpoint (five-minute network inactivity timeout by default)
 stream = sprite.create_checkpoint("my checkpoint")
 for msg in stream:
     print(msg.type, msg.data)
 
-# Restore a checkpoint
-stream = sprite.restore_checkpoint("checkpoint-id")
+# Restore a checkpoint with a caller-selected timeout
+stream = sprite.restore_checkpoint("checkpoint-id", timeout=600)
 for msg in stream:
     print(msg.type, msg.data)
 ```

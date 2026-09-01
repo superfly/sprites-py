@@ -6,7 +6,9 @@
 
 # step: Setup client
 import os
+
 from sprites import SpritesClient
+
 client = SpritesClient(os.environ["SPRITE_TOKEN"])
 
 # step: Create a sprite
@@ -18,6 +20,7 @@ result = client.sprite(os.environ["SPRITE_NAME"]).run(
     "-c",
     "print(2+2)",
     capture_output=True,
+    timeout=30,
 )
 print(result.stdout.decode(), end="")
 

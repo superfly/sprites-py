@@ -3,11 +3,12 @@ Sprite class representing a sprite instance
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import httpx
 
 from ._utils import parse_sprite_info, quote_path_segment, sprite_base_url
+from .checkpoint import CHECKPOINT_TIMEOUT
 from .exceptions import (
     NetworkError,
     NotFoundError,
@@ -309,33 +310,47 @@ class Sprite:
             history=cp.get("history"),
         )
 
-    def create_checkpoint(self, comment: str = ""):
+    def create_checkpoint(
+        self,
+        comment: str = "",
+        *,
+        timeout: Union[float, httpx.Timeout] = CHECKPOINT_TIMEOUT,
+    ):
         """
         Create a new checkpoint.
 
         Args:
             comment: Optional comment for the checkpoint
+            timeout: HTTP timeout in seconds, or an httpx.Timeout configuration
+                (default: 300 seconds)
 
         Returns:
             Iterator of checkpoint creation messages
         """
         from .checkpoint import create_checkpoint
 
-        return create_checkpoint(self, comment)
+        return create_checkpoint(self, comment, timeout=timeout)
 
-    def restore_checkpoint(self, checkpoint_id: str):
+    def restore_checkpoint(
+        self,
+        checkpoint_id: str,
+        *,
+        timeout: Union[float, httpx.Timeout] = CHECKPOINT_TIMEOUT,
+    ):
         """
         Restore a checkpoint.
 
         Args:
             checkpoint_id: Checkpoint ID to restore
+            timeout: HTTP timeout in seconds, or an httpx.Timeout configuration
+                (default: 300 seconds)
 
         Returns:
             Iterator of restore messages
         """
         from .checkpoint import restore_checkpoint
 
-        return restore_checkpoint(self, checkpoint_id)
+        return restore_checkpoint(self, checkpoint_id, timeout=timeout)
 
     # ========== Command Execution API ==========
 

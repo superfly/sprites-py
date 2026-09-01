@@ -61,7 +61,7 @@ def command_with_websocket(
     async def connect(*args, **kwargs):
         return websocket
 
-    monkeypatch.setattr("sprites.websocket.websockets.connect", connect)
+    monkeypatch.setattr("sprites.websocket.connect", connect)
     client = SpritesClient("test-token", base_url="https://api.test")
     return client.sprite("demo").command("echo", "test", tty=tty)
 
@@ -70,7 +70,7 @@ def test_dial_failure_is_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
     async def connect(*args, **kwargs):
         raise OSError("host unreachable")
 
-    monkeypatch.setattr("sprites.websocket.websockets.connect", connect)
+    monkeypatch.setattr("sprites.websocket.connect", connect)
     client = SpritesClient("test-token", base_url="https://api.test")
     cmd = client.sprite("demo").command("echo", "test")
 

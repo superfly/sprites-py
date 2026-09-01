@@ -7,8 +7,9 @@ import atexit
 import json
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
-import websockets
+from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 
 from sprites._signals import signal_headers
 from sprites._utils import quote_path_segment, websocket_base_url
@@ -212,7 +213,7 @@ class ControlConnection:
             sprite: The sprite this connection is for
         """
         self.sprite = sprite
-        self.ws: websockets.WebSocketClientProtocol | None = None
+        self.ws: ClientConnection | None = None
         self.op_active = False
         self.op_conn: OpConn | None = None
         self.closed = False
@@ -232,7 +233,7 @@ class ControlConnection:
             **signal_headers(),
         }
 
-        self.ws = await websockets.connect(
+        self.ws = await connect(
             url,
             additional_headers=headers,
             ping_interval=WS_PING_INTERVAL,
@@ -377,7 +378,7 @@ class ControlConnection:
         Args:
             data: Data to send
         """
-        if self.ws is None or self.ws.state != websockets.protocol.State.OPEN:
+        if self.ws is None or self.ws.state != State.OPEN:
             raise RuntimeError("WebSocket not connected")
         await self.ws.send(data)
 
@@ -387,7 +388,7 @@ class ControlConnection:
         Args:
             data: Text to send
         """
-        if self.ws is None or self.ws.state != websockets.protocol.State.OPEN:
+        if self.ws is None or self.ws.state != State.OPEN:
             raise RuntimeError("WebSocket not connected")
         await self.ws.send(data)
 

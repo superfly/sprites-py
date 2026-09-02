@@ -16,7 +16,7 @@ from sprites._utils import quote_path_segment, websocket_base_url
 from sprites.exceptions import NetworkError, SpriteError, parse_api_error
 
 if TYPE_CHECKING:
-    from sprites.exec import Cmd
+    from sprites.exec import _CmdBase
 
 
 class StreamID(IntEnum):
@@ -37,7 +37,7 @@ WS_PONG_WAIT = 45  # seconds
 class WSCommand:
     """WebSocket command execution handler."""
 
-    def __init__(self, cmd: Cmd):
+    def __init__(self, cmd: _CmdBase):
         """Initialize a WebSocket command handler.
 
         Args:
@@ -357,7 +357,7 @@ class WSCommand:
         return bytes(self._stderr_buffer)
 
 
-async def run_ws_command(cmd: Cmd) -> int:
+async def run_ws_command(cmd: _CmdBase) -> int:
     """Run a command via WebSocket and return exit code.
 
     Args:
@@ -373,7 +373,7 @@ async def run_ws_command(cmd: Cmd) -> int:
     return await _run_ws_command_direct(cmd)
 
 
-async def _run_ws_command_direct(cmd: Cmd) -> int:
+async def _run_ws_command_direct(cmd: _CmdBase) -> int:
     """Run a command via direct WebSocket (no control mode).
 
     Args:
@@ -408,7 +408,7 @@ async def _run_ws_command_direct(cmd: Cmd) -> int:
                 cmd._stderr_data = ws_cmd.get_stderr()
 
 
-async def run_ws_command_via_control(cmd: Cmd) -> int:
+async def run_ws_command_via_control(cmd: _CmdBase) -> int:
     """Run a command via the control connection for multiplexed operations.
 
     Args:

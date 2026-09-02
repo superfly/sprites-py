@@ -21,6 +21,10 @@ Usage:
         print(entry.name)
 """
 
+from .async_client import AsyncSpritesClient
+from .async_exec import AsyncCmd
+from .async_filesystem import AsyncSpriteFilesystem, AsyncSpritePath
+from .async_sprite import AsyncSprite
 from .client import SpritesClient
 from .control import ControlConnection, OpConn
 from .exceptions import (
@@ -68,9 +72,14 @@ __version__ = "0.6.0"
 __all__ = [
     # Main classes
     "SpritesClient",
+    "AsyncSpritesClient",
     "Sprite",
+    "AsyncSprite",
     "SpriteFilesystem",
+    "AsyncSpriteFilesystem",
     "SpritePath",
+    "AsyncSpritePath",
+    "AsyncCmd",
     "ControlConnection",
     "OpConn",
     # Exceptions

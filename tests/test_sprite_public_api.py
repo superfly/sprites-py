@@ -271,3 +271,22 @@ def test_run_check_raises_exit_error(monkeypatch: pytest.MonkeyPatch) -> None:
         sprite.run("false", check=True)
 
     assert exc_info.value.exit_code() == 2
+
+
+def test_sync_command_records_completed_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def completed_command(cmd: Cmd) -> int:
+        return 7
+
+    monkeypatch.setattr(Cmd, "_run_async", completed_command)
+    client = SpritesClient("test-token", base_url="https://api.test")
+    cmd = client.sprite("demo").command("false")
+
+    try:
+        with pytest.raises(ExitError):
+            cmd.run()
+
+        assert cmd.exit_code == 7
+    finally:
+        client.close()

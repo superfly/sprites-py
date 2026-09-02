@@ -7,16 +7,18 @@ import sprites.control as control_module
 import sprites.loop as loop_module
 
 
-def test_control_cleanup_registers_lazily_on_first_pool(monkeypatch) -> None:
+def test_control_pools_are_scoped_to_their_event_loop(monkeypatch) -> None:
     registered = []
-    connection = object()
+    created = []
 
     class FakePool:
         def __init__(self, sprite) -> None:
             self.sprite = sprite
+            self.connection = object()
+            created.append(self)
 
         async def acquire(self):
-            return connection
+            return self.connection
 
     sprite = SimpleNamespace(
         name="demo",
@@ -30,8 +32,10 @@ def test_control_cleanup_registers_lazily_on_first_pool(monkeypatch) -> None:
     first = asyncio.run(control_module.get_control_connection(sprite))
     second = asyncio.run(control_module.get_control_connection(sprite))
 
-    assert first is connection
-    assert second is connection
+    assert first is not second
+    assert len(created) == 2
+    assert len(control_module._control_pools) == 1
+    assert next(iter(control_module._control_pools))[0].is_closed()
     assert registered == [control_module._cleanup_on_exit]
 
 
@@ -78,12 +82,11 @@ def test_control_cleanup_closes_pools_while_loop_is_running(monkeypatch) -> None
         async def close(self) -> None:
             self.closed = True
 
-    pool = FakePool()
-    pools = {"remaining": pool}
-    monkeypatch.setattr(control_module, "_control_pools", pools)
-
     loop = loop_module.get_loop()
     assert loop.is_running()
+    pool = FakePool()
+    pools = {(loop, 1, "https://api.test", "demo"): pool}
+    monkeypatch.setattr(control_module, "_control_pools", pools)
 
     control_module._cleanup_on_exit()
 

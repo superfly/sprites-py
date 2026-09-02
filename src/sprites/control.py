@@ -5,17 +5,15 @@ from __future__ import annotations
 import asyncio
 import atexit
 import json
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 from websockets.protocol import State
 
+from sprites._interfaces import ClientLike, SpriteLike
 from sprites._signals import signal_headers
 from sprites._utils import quote_path_segment, websocket_base_url
-
-if TYPE_CHECKING:
-    from .sprite import Sprite
 
 # Control envelope protocol constants (must match server's pkg/wss)
 CONTROL_PREFIX = "control:"
@@ -206,7 +204,7 @@ class OpConn:
 class ControlConnection:
     """Manages a persistent WebSocket connection for multiplexed operations."""
 
-    def __init__(self, sprite: Sprite):
+    def __init__(self, sprite: SpriteLike):
         """Initialize a control connection.
 
         Args:
@@ -447,7 +445,7 @@ POOL_DRAIN_TARGET = 10  # Drain down to this many conns when draining
 class ControlPool:
     """Manages a pool of control connections for concurrent operations."""
 
-    def __init__(self, sprite: Sprite, max_size: int = MAX_POOL_SIZE):
+    def __init__(self, sprite: SpriteLike, max_size: int = MAX_POOL_SIZE):
         """Initialize a control pool.
 
         Args:
@@ -568,9 +566,31 @@ class ControlPool:
         return len(self.conns) > 0
 
 
-# Module-level cache for control pools (one pool per sprite)
-_control_pools: Dict[str, ControlPool] = {}
+# Pools cannot cross event-loop or client boundaries: their WebSocket, tasks,
+# locks, and events all belong to the loop on which they were created.
+ControlPoolKey = tuple[asyncio.AbstractEventLoop, int, str, str]
+_control_pools: Dict[ControlPoolKey, ControlPool] = {}
 _cleanup_registered = False
+
+
+def _prune_closed_loop_pools() -> None:
+    """Drop pools whose owning event loops have already been closed."""
+    closed_keys = [key for key in _control_pools if key[0].is_closed()]
+    for key in closed_keys:
+        # Async resources cannot be awaited after their owning loop is closed.
+        # Removing the pool releases the stale loop, client, and connection
+        # references and prevents them from being reused by another loop.
+        _control_pools.pop(key)
+
+
+def _control_pool_key(sprite: SpriteLike) -> ControlPoolKey:
+    """Return the current-loop pool key for a sprite handle."""
+    return (
+        asyncio.get_running_loop(),
+        id(sprite.client),
+        sprite.client.base_url,
+        sprite.name,
+    )
 
 
 def _register_cleanup_on_exit() -> None:
@@ -582,7 +602,7 @@ def _register_cleanup_on_exit() -> None:
         _cleanup_registered = True
 
 
-async def get_control_connection(sprite: Sprite) -> ControlConnection:
+async def get_control_connection(sprite: SpriteLike) -> ControlConnection:
     """Get a control connection from the pool for a sprite.
 
     Args:
@@ -591,7 +611,8 @@ async def get_control_connection(sprite: Sprite) -> ControlConnection:
     Returns:
         ControlConnection instance (caller must release when done)
     """
-    key = f"{sprite.client.base_url}:{sprite.name}"
+    _prune_closed_loop_pools()
+    key = _control_pool_key(sprite)
 
     # Get or create pool
     if key not in _control_pools:
@@ -602,33 +623,33 @@ async def get_control_connection(sprite: Sprite) -> ControlConnection:
     return await pool.acquire()
 
 
-def release_control_connection(sprite: Sprite, cc: ControlConnection) -> None:
+def release_control_connection(sprite: SpriteLike, cc: ControlConnection) -> None:
     """Release a control connection back to the pool.
 
     Args:
         sprite: The sprite whose pool to release to
         cc: The connection to release
     """
-    key = f"{sprite.client.base_url}:{sprite.name}"
+    key = _control_pool_key(sprite)
 
     if key in _control_pools:
         _control_pools[key].release(cc)
 
 
-async def close_control_connection(sprite: Sprite) -> None:
+async def close_control_connection(sprite: SpriteLike) -> None:
     """Close the control pool for a sprite.
 
     Args:
         sprite: The sprite whose pool to close
     """
-    key = f"{sprite.client.base_url}:{sprite.name}"
+    key = _control_pool_key(sprite)
 
     if key in _control_pools:
         pool = _control_pools.pop(key)
         await pool.close()
 
 
-def has_control_connection(sprite: Sprite) -> bool:
+def has_control_connection(sprite: SpriteLike) -> bool:
     """Check if a sprite has any active control connections.
 
     Args:
@@ -637,16 +658,39 @@ def has_control_connection(sprite: Sprite) -> bool:
     Returns:
         True if the sprite has active control connections
     """
-    key = f"{sprite.client.base_url}:{sprite.name}"
-    if key not in _control_pools:
-        return False
-    return _control_pools[key].has_connections()
+    try:
+        pool = _control_pools.get(_control_pool_key(sprite))
+        return pool is not None and pool.has_connections()
+    except RuntimeError:
+        # This inspection helper may be called outside an event loop. Report a
+        # pool only when it belongs to the same client and sprite.
+        return any(
+            client_id == id(sprite.client)
+            and base_url == sprite.client.base_url
+            and name == sprite.name
+            and pool.has_connections()
+            for (_, client_id, base_url, name), pool in _control_pools.items()
+        )
+
+
+async def close_control_pools(client: ClientLike) -> None:
+    """Close every control pool owned by a client on the current event loop.
+
+    Args:
+        client: Client whose multiplexed control connections should be closed.
+    """
+    loop = asyncio.get_running_loop()
+    keys = [key for key in _control_pools if key[0] is loop and key[1] == id(client)]
+    for key in keys:
+        pool = _control_pools.pop(key)
+        await pool.close()
 
 
 async def _close_all_pools() -> None:
-    """Close all control pools. Called on program exit."""
-    pools = list(_control_pools.values())
-    _control_pools.clear()
+    """Close control pools owned by the current loop during process exit."""
+    loop = asyncio.get_running_loop()
+    keys = [key for key in _control_pools if key[0] is loop]
+    pools = [_control_pools.pop(key) for key in keys]
     for pool in pools:
         try:
             await pool.close()

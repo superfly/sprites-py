@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import posixpath
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Union
+from typing import TYPE_CHECKING, Dict, Iterator, List, Union
 
 import httpx
 
+from ._path import _SpritePathBase
 from ._utils import sprite_base_url
 from .exceptions import (
     DirectoryNotEmptyError,
@@ -39,187 +40,37 @@ if TYPE_CHECKING:
     from .sprite import Sprite
 
 
-class SpritePath:
+def _handle_filesystem_error(
+    response: httpx.Response, operation: str, path: str
+) -> None:
+    """Raise the filesystem exception represented by an HTTP response."""
+    if response.status_code == 404:
+        raise FileNotFoundError_(operation, path)
+
+    try:
+        data = response.json()
+        error_msg = data.get("error", response.text)
+        error_code = data.get("code", "")
+
+        if error_code == "EISDIR" or "is a directory" in error_msg.lower():
+            raise IsADirectoryError_(operation, path)
+        if error_code == "ENOTDIR" or "not a directory" in error_msg.lower():
+            raise NotADirectoryError_(operation, path)
+        if error_code == "EACCES" or "permission denied" in error_msg.lower():
+            raise PermissionError_(operation, path)
+        if error_code == "ENOTEMPTY" or "not empty" in error_msg.lower():
+            raise DirectoryNotEmptyError(operation, path)
+        raise FilesystemError(error_msg, operation, path, error_code)
+    except (ValueError, KeyError):
+        raise FilesystemError(response.text, operation, path) from None
+
+
+class SpritePath(_SpritePathBase["SpritePath", "SpriteFilesystem"]):
     """
     A pathlib.Path-like interface for sprite filesystem operations.
 
     Supports path operations using / operator and standard file methods.
     """
-
-    def __init__(self, filesystem: "SpriteFilesystem", path: str):
-        """
-        Initialize a SpritePath.
-
-        Args:
-            filesystem: Parent SpriteFilesystem instance
-            path: Path relative to the filesystem's working directory
-        """
-        self._fs = filesystem
-        self._path = self._normalize_path(path)
-
-    def _normalize_path(self, path: str) -> str:
-        """Normalize path to absolute POSIX path."""
-        if not path:
-            path = "."
-        # If relative, join with current path
-        if not path.startswith("/"):
-            if self._fs._working_dir == "/":
-                path = "/" + path
-            else:
-                path = posixpath.join(self._fs._working_dir, path)
-        # Normalize .. and . components
-        return posixpath.normpath(path)
-
-    def __truediv__(self, other: Union[str, "SpritePath"]) -> "SpritePath":
-        """Support path / "subpath" syntax."""
-        if isinstance(other, SpritePath):
-            other_path = other._path
-        else:
-            other_path = str(other)
-
-        if other_path.startswith("/"):
-            # Absolute path - use as-is
-            new_path = other_path
-        else:
-            # Relative path - join with current
-            new_path = posixpath.join(self._path, other_path)
-
-        return SpritePath(self._fs, new_path)
-
-    def __rtruediv__(self, other: str) -> "SpritePath":
-        """Support "path" / sprite_path syntax."""
-        return SpritePath(self._fs, posixpath.join(other, self._path))
-
-    def __str__(self) -> str:
-        return self._path
-
-    def __repr__(self) -> str:
-        return f"SpritePath({self._path!r})"
-
-    def __fspath__(self) -> str:
-        return self._path
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, SpritePath):
-            return self._path == other._path and self._fs is other._fs
-        return False
-
-    def __hash__(self) -> int:
-        return hash(self._path)
-
-    @property
-    def name(self) -> str:
-        """The final component of this path."""
-        return posixpath.basename(self._path)
-
-    @property
-    def stem(self) -> str:
-        """The final component of this path, without its suffix."""
-        name = self.name
-        dot_idx = name.rfind(".")
-        if dot_idx > 0:
-            return name[:dot_idx]
-        return name
-
-    @property
-    def suffix(self) -> str:
-        """The file extension of this path."""
-        name = self.name
-        dot_idx = name.rfind(".")
-        if dot_idx > 0:
-            return name[dot_idx:]
-        return ""
-
-    @property
-    def suffixes(self) -> List[str]:
-        """A list of the path's file extensions."""
-        name = self.name
-        if name.startswith("."):
-            name = name[1:]
-        parts = name.split(".")
-        if len(parts) <= 1:
-            return []
-        return ["." + part for part in parts[1:]]
-
-    @property
-    def parent(self) -> "SpritePath":
-        """The logical parent of this path."""
-        parent_path = posixpath.dirname(self._path)
-        if not parent_path:
-            parent_path = "/"
-        return SpritePath(self._fs, parent_path)
-
-    @property
-    def parents(self) -> List["SpritePath"]:
-        """A sequence of this path's logical parents."""
-        parents = []
-        current = self.parent
-        while current._path != "/" and current._path != self._path:
-            parents.append(current)
-            current = current.parent
-        if current._path == "/":
-            parents.append(current)
-        return parents
-
-    @property
-    def parts(self) -> tuple:
-        """An object providing sequence-like access to the path's components."""
-        if self._path == "/":
-            return ("/",)
-        parts = self._path.split("/")
-        if parts[0] == "":
-            parts[0] = "/"
-        return tuple(p for p in parts if p)
-
-    def is_absolute(self) -> bool:
-        """Return whether this path is absolute."""
-        return self._path.startswith("/")
-
-    def is_relative_to(self, other: Union[str, "SpritePath"]) -> bool:
-        """Return whether this path is relative to another path."""
-        if isinstance(other, SpritePath):
-            other_path = other._path
-        else:
-            other_path = str(other)
-        return (
-            self._path.startswith(other_path.rstrip("/") + "/")
-            or self._path == other_path
-        )
-
-    def joinpath(self, *others: Union[str, "SpritePath"]) -> "SpritePath":
-        """Combine this path with one or more other paths."""
-        result = self
-        for other in others:
-            result = result / other
-        return result
-
-    def with_name(self, name: str) -> "SpritePath":
-        """Return a new path with the name changed."""
-        return self.parent / name
-
-    def with_stem(self, stem: str) -> "SpritePath":
-        """Return a new path with the stem changed."""
-        return self.parent / (stem + self.suffix)
-
-    def with_suffix(self, suffix: str) -> "SpritePath":
-        """Return a new path with the suffix changed."""
-        return self.parent / (self.stem + suffix)
-
-    def relative_to(self, other: Union[str, "SpritePath"]) -> "SpritePath":
-        """Return a relative path from this path to another."""
-        if isinstance(other, SpritePath):
-            other_path = other._path
-        else:
-            other_path = str(other)
-
-        other_path = other_path.rstrip("/")
-        if not self._path.startswith(other_path + "/") and self._path != other_path:
-            raise ValueError(f"{self._path} is not relative to {other_path}")
-
-        rel = self._path[len(other_path) :].lstrip("/")
-        if not rel:
-            rel = "."
-        return SpritePath(self._fs, rel)
 
     # ========== Filesystem Operations ==========
 
@@ -238,26 +89,7 @@ class SpritePath:
 
     def _handle_error(self, response: httpx.Response, operation: str) -> None:
         """Handle HTTP error responses."""
-        if response.status_code == 404:
-            raise FileNotFoundError_(operation, self._path)
-
-        try:
-            data = response.json()
-            error_msg = data.get("error", response.text)
-            error_code = data.get("code", "")
-
-            if error_code == "EISDIR" or "is a directory" in error_msg.lower():
-                raise IsADirectoryError_(operation, self._path)
-            elif error_code == "ENOTDIR" or "not a directory" in error_msg.lower():
-                raise NotADirectoryError_(operation, self._path)
-            elif error_code == "EACCES" or "permission denied" in error_msg.lower():
-                raise PermissionError_(operation, self._path)
-            elif error_code == "ENOTEMPTY" or "not empty" in error_msg.lower():
-                raise DirectoryNotEmptyError(operation, self._path)
-            else:
-                raise FilesystemError(error_msg, operation, self._path, error_code)
-        except (ValueError, KeyError):
-            raise FilesystemError(response.text, operation, self._path)
+        _handle_filesystem_error(response, operation, self._path)
 
     def exists(self) -> bool:
         """Return True if this path exists."""

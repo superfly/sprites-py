@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - Added native asyncio support through `AsyncSpritesClient` and matching async
   sprite, command, and filesystem handles.

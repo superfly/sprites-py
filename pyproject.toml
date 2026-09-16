@@ -40,8 +40,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://fly.io/sprites"
-Documentation = "https://fly.io/sprites"
+Homepage = "https://fly.io/sprites/"
+Documentation = "https://fly.io/sprites/"
 Repository = "https://github.com/superfly/sprites-py"
 Issues = "https://github.com/superfly/sprites-py/issues"
 

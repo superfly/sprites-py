@@ -39,6 +39,12 @@ dependencies = [
     "client-signals>=0.4.4",
 ]
 
+[project.urls]
+Homepage = "https://fly.io/sprites"
+Documentation = "https://fly.io/sprites"
+Repository = "https://github.com/superfly/sprites-py"
+Issues = "https://github.com/superfly/sprites-py/issues"
+
 [project.optional-dependencies]
 dev = [
     "build>=1.2",

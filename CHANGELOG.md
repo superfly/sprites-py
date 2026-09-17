@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- Added `project.urls` metadata so PyPI links to the Sprites homepage and docs at
+  fly.io/sprites, plus the repository and issue tracker.
+
 ## 0.7.0
 
 - Added native asyncio support through `AsyncSpritesClient` and matching async

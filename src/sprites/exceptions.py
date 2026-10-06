@@ -2,6 +2,7 @@
 Exceptions for the Sprites SDK
 """
 
+import builtins
 import json
 from typing import Any, Optional
 
@@ -219,7 +220,7 @@ class ExecError(SpriteError):
 ExitError = ExecError
 
 
-class TimeoutError(SpriteError):
+class TimeoutError(SpriteError, builtins.TimeoutError):
     """Command execution timed out."""
 
     pass

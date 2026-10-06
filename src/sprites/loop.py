@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import atexit
 import threading
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Coroutine, TypeVar
+
+from sprites.exceptions import TimeoutError as SpriteTimeoutError
 
 T = TypeVar("T")
 
@@ -70,7 +73,8 @@ def run_sync(coro: Coroutine[Any, Any, T], timeout: float | None = None) -> T:
         The result of the coroutine.
 
     Raises:
-        TimeoutError: If the timeout is exceeded.
+        sprites.exceptions.TimeoutError: If the caller deadline is exceeded.
+            Also catchable as the built-in TimeoutError.
         Exception: Any exception raised by the coroutine.
     """
     loop = get_loop()
@@ -80,9 +84,13 @@ def run_sync(coro: Coroutine[Any, Any, T], timeout: float | None = None) -> T:
 
     try:
         return future.result(timeout=timeout)
-    except TimeoutError:
+    except FutureTimeoutError as error:
+        # On Python 3.9/3.10 this is distinct from builtins.TimeoutError.
+        # Preserve exceptions raised by the coroutine itself, including SDK timeouts.
+        if future.done() and not future.cancelled() and future.exception() is error:
+            raise
         future.cancel()
-        raise
+        raise SpriteTimeoutError(f"operation timed out after {timeout}s") from error
 
 
 async def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:

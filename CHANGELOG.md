@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2
+
+- Fixed synchronous caller deadlines to raise a descriptive
+  `sprites.exceptions.TimeoutError` consistently across Python versions and
+  cancel pending local work, while preserving exceptions raised by the coroutine.
+- Made the SDK timeout exception catchable as both `SpriteError` and Python's
+  built-in `TimeoutError`.
+
 ## 0.7.1
 
 - Added `project.urls` metadata so PyPI links to the Sprites homepage and docs at
